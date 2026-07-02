@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Warm-tinted neutrals: quiet paper surface, inked text */
+  --color-paper: oklch(0.972 0.005 90);
+  --color-ink: oklch(0.26 0.012 80);
+  --color-ink-soft: oklch(0.52 0.012 80);
+  --color-line: oklch(0.89 0.008 90);
+  --color-well: oklch(0.945 0.006 90);
+}
+
+@keyframes swatch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
