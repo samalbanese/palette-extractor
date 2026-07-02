@@ -1,0 +1,29 @@
+{
+  "name": "palette-extractor",
+  "description": "Upload an image, get its color palette — client-side React tool",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "quantize": "^1.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.5.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.3.5",
+    "vitest": "^3.1.0"
+  }
+}
