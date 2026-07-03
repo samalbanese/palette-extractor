@@ -1,5 +1,28 @@
 # Decisions
 
+## 2026-07-03 — v1.1 (stretch goals)
+
+- **Own median-cut quantizer replaces the `quantize` library.** The spec's
+  hardest stretch goal, and it unlocks color locking: we exclude pixels near
+  locked colors before quantizing, which a black-box library can't do. Kept
+  MMCQ's two proven behaviors: hybrid scoring (population for early splits,
+  population x volume for later ones, so small accent colors surface) and
+  gap-seeking cut placement (cutting at the raw pixel median mixes clusters
+  into muddy averages — our tests caught this on the first implementation).
+- **URL paste uses images.weserv.nl as a CORS fallback proxy.** Most image
+  hosts block cross-origin canvas reads, so direct-only would fail for the
+  majority of pasted URLs. Tradeoff disclosed in the footer: pasted URLs
+  (not uploaded files) are fetched from the web, via the proxy when needed.
+  Uploads still never leave the browser.
+- **Lock exclusion radius = 60 RGB Euclidean distance.** Big enough that
+  re-extraction doesn't return a near-duplicate of a locked color, small
+  enough not to erase distinct neighbors. Falls back to all pixels if the
+  exclusion would leave nothing.
+- **Contrast pairs shown once, lighter color as background.** WCAG contrast
+  is symmetric, so listing both orientations would double the list without
+  adding information.
+
+
 ## 2026-07-02 — v1
 
 - **`quantize` package instead of the ColorThief wrapper.** Same

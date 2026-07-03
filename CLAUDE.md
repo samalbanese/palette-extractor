@@ -10,7 +10,8 @@ export (CSS variables, Tailwind snippet, JSON). Full spec in
 ## Stack (fixed — do not change without asking Sam)
 
 - React 18 + Vite + Tailwind CSS
-- ColorThief (or similar established library) for color quantization
+- From-scratch median-cut quantizer in `src/lib/medianCut.ts` (stretch goal;
+  replaced the `quantize` library — zero runtime dependencies beyond React)
 - Deployed to Cloudflare Pages as a static site from the GitHub repo
 - No backend, no database, no API keys, no server cost. Everything runs in
   the browser.

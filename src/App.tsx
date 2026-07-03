@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import sampleSrc from './assets/sample.svg'
 import { Swatch } from './components/Swatch'
 import { Controls } from './components/Controls'
-import { type RGB, type SortMode, sortPalette } from './lib/color'
-import { extractPalette } from './lib/extract'
+import { ContrastPanel } from './components/ContrastPanel'
+import { type RGB, type SortMode, rgbToHex, sortPalette } from './lib/color'
+import { extractPalette, resolveImageUrl } from './lib/extract'
 import { type ExportFormat, exportPalette } from './lib/exporters'
 import { copyText } from './lib/clipboard'
 
@@ -12,15 +13,27 @@ interface LoadedImage {
   name: string
 }
 
+function nameFromUrl(url: string): string {
+  try {
+    const { hostname, pathname } = new URL(url)
+    const tail = pathname.split('/').filter(Boolean).pop()
+    return tail ? `${hostname}/${tail}` : hostname
+  } catch {
+    return url
+  }
+}
+
 export default function App() {
   const [image, setImage] = useState<LoadedImage>({
     src: sampleSrc,
     name: 'Sample image',
   })
   const [palette, setPalette] = useState<RGB[]>([])
+  const [locked, setLocked] = useState<RGB[]>([])
   const [count, setCount] = useState(6)
   const [sort, setSort] = useState<SortMode>('original')
   const [format, setFormat] = useState<ExportFormat>('css')
+  const [showContrast, setShowContrast] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const [extracting, setExtracting] = useState(false)
@@ -42,11 +55,35 @@ export default function App() {
     setImage({ src: objectUrl.current, name: file.name })
   }, [])
 
-  // Extract whenever the image or requested color count changes.
+  const loadUrl = useCallback(async (url: string) => {
+    setError(null)
+    setExtracting(true)
+    try {
+      const src = await resolveImageUrl(url)
+      if (objectUrl.current) {
+        URL.revokeObjectURL(objectUrl.current)
+        objectUrl.current = null
+      }
+      setImage({ src, name: nameFromUrl(url) })
+    } catch (err) {
+      setExtracting(false)
+      setError((err as Error).message)
+    }
+  }, [])
+
+  // Extract whenever the image, requested count, or locked colors change.
+  // Locked colors stay; the rest re-extracts around them.
+  const lockedKey = locked.map(rgbToHex).join(',')
   useEffect(() => {
     const id = ++requestId.current
     setExtracting(true)
-    extractPalette(image.src, count)
+    const remaining = count - locked.length
+    const run = async (): Promise<RGB[]> => {
+      if (remaining <= 0) return locked.slice(0, count)
+      const extracted = await extractPalette(image.src, remaining, locked)
+      return [...locked, ...extracted]
+    }
+    run()
       .then((colors) => {
         if (requestId.current !== id) return
         setPalette(colors)
@@ -59,9 +96,10 @@ export default function App() {
       .finally(() => {
         if (requestId.current === id) setExtracting(false)
       })
-  }, [image.src, count])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image.src, count, lockedKey])
 
-  // Whole-window drag-and-drop and clipboard paste.
+  // Whole-window drag-and-drop, plus paste (image data or an image URL).
   useEffect(() => {
     const onDragEnter = (e: DragEvent) => {
       if (!e.dataTransfer?.types.includes('Files')) return
@@ -84,7 +122,12 @@ export default function App() {
       const item = Array.from(e.clipboardData?.items ?? []).find((i) =>
         i.type.startsWith('image/')
       )
-      if (item) loadFile(item.getAsFile())
+      if (item) {
+        loadFile(item.getAsFile())
+        return
+      }
+      const text = e.clipboardData?.getData('text/plain').trim()
+      if (text && /^https?:\/\/\S+$/i.test(text)) void loadUrl(text)
     }
 
     window.addEventListener('dragenter', onDragEnter)
@@ -99,11 +142,21 @@ export default function App() {
       window.removeEventListener('drop', onDrop)
       window.removeEventListener('paste', onPaste)
     }
-  }, [loadFile])
+  }, [loadFile, loadUrl])
+
+  const lockedSet = new Set(locked.map(rgbToHex))
+  const toggleLock = (color: RGB) => {
+    const hex = rgbToHex(color)
+    setLocked((prev) =>
+      prev.some((c) => rgbToHex(c) === hex)
+        ? prev.filter((c) => rgbToHex(c) !== hex)
+        : [...prev, color]
+    )
+  }
 
   const sorted = sortPalette(palette, sort)
   // Remount swatches when the palette itself changes so the rise animation replays.
-  const paletteKey = `${image.src}-${count}-${sort}`
+  const paletteKey = `${image.src}-${count}-${sort}-${lockedKey}`
 
   const handleCopyAll = () => copyText(exportPalette(sorted, format))
 
@@ -113,7 +166,7 @@ export default function App() {
         <div>
           <h1 className="text-xl font-bold tracking-tight">Palette Extractor</h1>
           <p className="mt-0.5 text-sm text-ink-soft">
-            Drop, paste, or upload an image — its colors appear below.
+            Drop, paste, or upload an image — or paste an image URL.
           </p>
         </div>
 
@@ -125,6 +178,7 @@ export default function App() {
           <img
             src={image.src}
             alt=""
+            crossOrigin={/^https?:/i.test(image.src) ? 'anonymous' : undefined}
             className="h-12 w-16 rounded-lg object-cover"
           />
           <span>
@@ -162,7 +216,13 @@ export default function App() {
           key={paletteKey}
         >
           {sorted.map((color, i) => (
-            <Swatch key={i} color={color} index={i} />
+            <Swatch
+              key={i}
+              color={color}
+              index={i}
+              locked={lockedSet.has(rgbToHex(color))}
+              onToggleLock={() => toggleLock(color)}
+            />
           ))}
         </div>
 
@@ -175,13 +235,19 @@ export default function App() {
             format={format}
             onFormatChange={setFormat}
             onCopyAll={handleCopyAll}
+            showContrast={showContrast}
+            onToggleContrast={() => setShowContrast((v) => !v)}
           />
         </div>
+
+        {showContrast && <ContrastPanel palette={sorted} />}
       </main>
 
-      <footer className="px-5 pb-5 sm:px-10">
+      <footer className="px-5 pb-5 pt-2 sm:px-10">
         <p className="text-xs text-ink-soft">
-          Runs entirely in your browser — images never leave your device.
+          Uploads stay in your browser and never leave your device. Pasted URLs
+          are fetched from the web, through the images.weserv.nl proxy when the
+          site blocks direct access.
         </p>
       </footer>
 

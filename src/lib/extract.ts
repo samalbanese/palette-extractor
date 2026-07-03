@@ -1,5 +1,5 @@
-import quantize from 'quantize'
 import type { RGB } from './color'
+import { medianCut, colorDistanceSq, type Pixel } from './medianCut'
 
 /**
  * Longest edge of the downscaled working canvas. Median cut only needs a
@@ -7,27 +7,60 @@ import type { RGB } from './color'
  */
 const MAX_DIMENSION = 160
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+/**
+ * Pixels closer than this (Euclidean RGB distance) to a locked color are
+ * excluded before quantizing, so re-extraction finds colors *around* the
+ * locked ones instead of re-finding them.
+ */
+const LOCK_EXCLUSION_DISTANCE = 60
+
+const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG."
+
+export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
+    // Remote images need CORS approval or the canvas becomes unreadable.
+    if (/^https?:/i.test(src)) img.crossOrigin = 'anonymous'
     img.onload = () => resolve(img)
-    img.onerror = () =>
-      reject(new Error("Couldn't read that image. Try a JPG, PNG, WebP, or SVG."))
+    img.onerror = () => reject(new Error(UNREADABLE))
     img.src = src
   })
 }
 
 /**
- * Draw the image to an offscreen canvas, downscale it, and run median-cut
- * quantization to find the dominant colors.
+ * Resolve a pasted image URL to a loadable src. Tries the URL directly
+ * first; if the host blocks cross-origin reads, retries through the free
+ * images.weserv.nl proxy, which serves any public image with CORS enabled.
  */
-export async function extractPalette(src: string, count: number): Promise<RGB[]> {
+export async function resolveImageUrl(url: string): Promise<string> {
+  const proxied = `https://images.weserv.nl/?url=${encodeURIComponent(url)}`
+  for (const candidate of [url, proxied]) {
+    try {
+      await loadImage(candidate)
+      return candidate
+    } catch {
+      // try the next candidate
+    }
+  }
+  throw new Error(
+    "Couldn't load an image from that URL. The site may be private or blocking access — try saving the image and uploading it instead."
+  )
+}
+
+/**
+ * Draw the image to an offscreen canvas, downscale it, and run median-cut
+ * quantization to find the dominant colors. Pixels near any `exclude` color
+ * (locked swatches) are removed before quantizing.
+ */
+export async function extractPalette(
+  src: string,
+  count: number,
+  exclude: RGB[] = []
+): Promise<RGB[]> {
   const img = await loadImage(src)
   const width = img.naturalWidth || img.width
   const height = img.naturalHeight || img.height
-  if (!width || !height) {
-    throw new Error("Couldn't read that image. Try a JPG, PNG, WebP, or SVG.")
-  }
+  if (!width || !height) throw new Error(UNREADABLE)
 
   const scale = Math.min(1, MAX_DIMENSION / Math.max(width, height))
   const w = Math.max(1, Math.round(width * scale))
@@ -41,28 +74,27 @@ export async function extractPalette(src: string, count: number): Promise<RGB[]>
   ctx.drawImage(img, 0, 0, w, h)
 
   const { data } = ctx.getImageData(0, 0, w, h)
-  const pixels: [number, number, number][] = []
+  const all: Pixel[] = []
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < 125) continue // skip transparent pixels
-    pixels.push([data[i], data[i + 1], data[i + 2]])
+    all.push([data[i], data[i + 1], data[i + 2]])
   }
-  if (pixels.length === 0) {
+  if (all.length === 0) {
     throw new Error('That image appears to be fully transparent.')
   }
 
-  const colorMap = quantize(pixels, count)
-  if (!colorMap) {
-    throw new Error("Couldn't extract colors from that image.")
+  let pixels = all
+  if (exclude.length > 0) {
+    const limit = LOCK_EXCLUSION_DISTANCE ** 2
+    const nearLocked = (p: Pixel) =>
+      exclude.some(
+        (c) => colorDistanceSq({ r: p[0], g: p[1], b: p[2] }, c) < limit
+      )
+    const filtered = all.filter((p) => !nearLocked(p))
+    // If locked colors cover the whole image, fall back to every pixel
+    // rather than returning nothing.
+    if (filtered.length > 0) pixels = filtered
   }
 
-  const seen = new Set<string>()
-  const palette: RGB[] = []
-  for (const [r, g, b] of colorMap.palette()) {
-    const key = `${r},${g},${b}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    palette.push({ r, g, b })
-    if (palette.length === count) break
-  }
-  return palette
+  return medianCut(pixels, count)
 }

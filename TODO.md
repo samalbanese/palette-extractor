@@ -2,21 +2,20 @@
 
 ## Now
 
-- [ ] [MANUAL] Connect Cloudflare Pages to the `samalbanese/palette-extractor`
-      GitHub repo (build command `npm run build`, output directory `dist`,
-      no environment variables). Steps are in README.md → Deploy.
-- [ ] After first deploy: open the live URL on a phone and confirm upload +
-      copy work (final acceptance criterion).
+- [ ] After the v1.1 deploy: open the live URL on a phone and give the new
+      features a quick once-over (lock a color, open Readable pairs, paste
+      an image URL).
 
-## Later (stretch goals from the spec, section 7)
+## Later
 
-- [ ] WCAG contrast helper: show which extracted colors pair safely as
-      text/background, with contrast ratios.
-- [ ] Extract from a pasted image URL.
-- [ ] Lock one color and re-extract the rest around it.
-- [ ] From-scratch quantizer (median-cut or k-means) to replace the library.
+- (empty — all spec stretch goals are shipped)
 
 ## Done
 
+- [x] 2026-07-03 — v1.1: all four remaining stretch goals shipped —
+      from-scratch median-cut quantizer (library dependency removed), WCAG
+      "Readable pairs" contrast helper, paste-an-image-URL, color locking
+      with re-extraction. 27 unit tests + 31 e2e checks passing.
+- [x] 2026-07-02 — [MANUAL] Cloudflare Pages connected and deployed (Sam).
 - [x] 2026-07-02 — v1 built, tested (15 unit + 19 e2e checks), pushed.
 - [x] 2026-07-02 — Stretch: palette sorting (as found / by hue / by light).

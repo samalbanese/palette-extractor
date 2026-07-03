@@ -21,10 +21,10 @@ snippet, or JSON — with one click each.
 
 - Not a design suite. No palette editing, no saving, no accounts.
 - No backend, no costs, no keys. It's a static page.
-- Version 1 doesn't need: WCAG contrast pairing, hue sorting, URL
-  extraction, or color locking. Those are stretch goals for later.
 
 ## Current priority
 
-Ship version 1 per `PALETTE_EXTRACTOR_SPEC.md`, deployed on Cloudflare
-Pages from this repo.
+Version 1 is live on Cloudflare Pages, and all the spec's stretch goals
+shipped in v1.1: contrast pairing, sorting, URL extraction, and color
+locking. The tool is feature-complete for now — future work is polish or
+new ideas, not the spec.
