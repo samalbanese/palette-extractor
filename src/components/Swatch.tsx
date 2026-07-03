@@ -12,11 +12,31 @@ import { copyText } from '../lib/clipboard'
 interface SwatchProps {
   color: RGB
   index: number
+  locked: boolean
+  onToggleLock: () => void
 }
 
 type ValueKind = 'hex' | 'rgb' | 'hsl'
 
-export function Swatch({ color, index }: SwatchProps) {
+function LockIcon({ locked }: { locked: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      {locked ? (
+        <path
+          d="M5 7V5a3 3 0 0 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v4A1.5 1.5 0 0 1 11.5 14h-7A1.5 1.5 0 0 1 3 12.5v-4A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z"
+          fill="currentColor"
+        />
+      ) : (
+        <path
+          d="M11.5 7H6.5V5a1.5 1.5 0 0 1 2.95-.39l1.45-.4A3 3 0 0 0 5 5v2h-.5A1.5 1.5 0 0 0 3 8.5v4A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-4A1.5 1.5 0 0 0 11.5 7Z"
+          fill="currentColor"
+        />
+      )}
+    </svg>
+  )
+}
+
+export function Swatch({ color, index, locked, onToggleLock }: SwatchProps) {
   const [copied, setCopied] = useState<ValueKind | null>(null)
   const timer = useRef<number>()
 
@@ -49,6 +69,25 @@ export function Swatch({ color, index }: SwatchProps) {
         flexGrow: 1,
       }}
     >
+      <button
+        type="button"
+        onClick={onToggleLock}
+        aria-pressed={locked}
+        aria-label={locked ? `Unlock ${hex}` : `Lock ${hex} and re-extract the rest`}
+        title={locked ? 'Unlock this color' : 'Keep this color when re-extracting'}
+        className={`absolute right-3 top-3 grid size-8 place-items-center rounded-full transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current ${
+          locked
+            ? 'opacity-100'
+            : 'opacity-40 hover:opacity-100 focus-visible:opacity-100'
+        }`}
+        style={{
+          color: 'inherit',
+          backgroundColor: locked ? 'color-mix(in srgb, currentColor 16%, transparent)' : 'transparent',
+        }}
+      >
+        <LockIcon locked={locked} />
+      </button>
+
       {values.map(({ kind, text }) => (
         <button
           key={kind}

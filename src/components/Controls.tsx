@@ -10,6 +10,8 @@ interface ControlsProps {
   format: ExportFormat
   onFormatChange: (format: ExportFormat) => void
   onCopyAll: () => Promise<boolean>
+  showContrast: boolean
+  onToggleContrast: () => void
 }
 
 const MIN_COLORS = 4
@@ -32,6 +34,8 @@ export function Controls({
   format,
   onFormatChange,
   onCopyAll,
+  showContrast,
+  onToggleContrast,
 }: ControlsProps) {
   const [copiedAll, setCopiedAll] = useState(false)
   const timer = useRef<number>()
@@ -90,6 +94,20 @@ export function Controls({
           </button>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={onToggleContrast}
+        aria-pressed={showContrast}
+        aria-expanded={showContrast}
+        className={`rounded-full px-3 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+          showContrast
+            ? 'bg-ink text-paper'
+            : 'text-ink-soft hover:bg-well hover:text-ink'
+        }`}
+      >
+        Readable pairs
+      </button>
 
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-sm text-ink-soft">
