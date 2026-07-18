@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { medianCut, colorDistanceSq, type Pixel } from './medianCut'
+import {
+  medianCut,
+  medianCutTrace,
+  medianCutWeighted,
+  colorDistanceSq,
+  type Pixel,
+} from './medianCut'
 
 /** Build a cluster of n pixels tightly scattered around a center color. */
 function cluster(center: [number, number, number], n: number, spread = 6): Pixel[] {
@@ -71,5 +77,40 @@ describe('medianCut', () => {
     const copy = pixels.map((p) => [...p])
     medianCut(pixels, 4)
     expect(pixels.map((p) => [...p])).toEqual(copy)
+  })
+})
+
+describe('weighted median cut and trace', () => {
+  it('preserves population totals, ordering, and the final split state', () => {
+    const pixels = [
+      ...cluster([220, 30, 30], 500),
+      ...cluster([30, 190, 70], 300),
+      ...cluster([40, 70, 220], 200),
+    ]
+    const weighted = medianCutWeighted(pixels, 3)
+    expect(weighted.reduce((sum, entry) => sum + entry.population, 0)).toBe(
+      pixels.length
+    )
+    expect(weighted.map((entry) => entry.population)).toEqual(
+      [...weighted].map((entry) => entry.population).sort((a, b) => b - a)
+    )
+
+    const traced = medianCutTrace(pixels, 3)
+    expect(traced.steps[0]).toHaveLength(1)
+    expect(traced.steps[traced.steps.length - 1]).toHaveLength(
+      traced.result.length
+    )
+    expect(traced.result).toEqual(weighted)
+  })
+
+  it('sums populations when final boxes average to an identical color', () => {
+    const pixels: Pixel[] = [
+      [0, 0, 0],
+      [0, 0, 2],
+      [0, 2, 0],
+      [0, 2, 2],
+    ]
+    const result = medianCutWeighted(pixels, 4)
+    expect(result.reduce((sum, entry) => sum + entry.population, 0)).toBe(4)
   })
 })

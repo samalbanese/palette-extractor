@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   type RGB,
   rgbToHex,
@@ -13,6 +13,8 @@ interface SwatchProps {
   color: RGB
   index: number
   locked: boolean
+  weight: number
+  name: string
   onToggleLock: () => void
 }
 
@@ -36,7 +38,14 @@ function LockIcon({ locked }: { locked: boolean }) {
   )
 }
 
-export function Swatch({ color, index, locked, onToggleLock }: SwatchProps) {
+export function Swatch({
+  color,
+  index,
+  locked,
+  weight,
+  name,
+  onToggleLock,
+}: SwatchProps) {
   const [copied, setCopied] = useState<ValueKind | null>(null)
   const timer = useRef<number>()
 
@@ -60,14 +69,15 @@ export function Swatch({ color, index, locked, onToggleLock }: SwatchProps) {
 
   return (
     <div
-      className="group relative flex min-h-28 flex-col justify-end p-4 transition-[flex-grow] duration-300 ease-out sm:min-h-0 sm:grow sm:p-5 sm:hover:grow-[1.5] sm:focus-within:grow-[1.5]"
+      className="weighted-swatch group relative flex flex-col justify-end p-4 transition-[flex-grow] duration-300 ease-out sm:p-5"
       style={{
         backgroundColor: hex,
         color: label,
         animation: 'swatch-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
         animationDelay: `${index * 45}ms`,
-        flexGrow: 1,
-      }}
+        '--swatch-grow': 1 + 2 * Math.sqrt(weight),
+        '--swatch-mobile-height': `${84 + weight * 120}px`,
+      } as CSSProperties}
     >
       <button
         type="button"
@@ -87,6 +97,8 @@ export function Swatch({ color, index, locked, onToggleLock }: SwatchProps) {
       >
         <LockIcon locked={locked} />
       </button>
+
+      <p className="mb-0.5 text-xs font-medium opacity-70">{name}</p>
 
       {values.map(({ kind, text }) => (
         <button

@@ -10,8 +10,12 @@ interface ControlsProps {
   format: ExportFormat
   onFormatChange: (format: ExportFormat) => void
   onCopyAll: () => Promise<boolean>
+  onShare: () => Promise<boolean>
+  onSaveCard: () => Promise<void>
   showContrast: boolean
   onToggleContrast: () => void
+  showHowItWorks: boolean
+  onToggleHowItWorks: () => void
 }
 
 const MIN_COLORS = 4
@@ -34,19 +38,41 @@ export function Controls({
   format,
   onFormatChange,
   onCopyAll,
+  onShare,
+  onSaveCard,
   showContrast,
   onToggleContrast,
+  showHowItWorks,
+  onToggleHowItWorks,
 }: ControlsProps) {
   const [copiedAll, setCopiedAll] = useState(false)
-  const timer = useRef<number>()
+  const [shared, setShared] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const timers = useRef<number[]>([])
 
-  useEffect(() => () => window.clearTimeout(timer.current), [])
+  useEffect(() => () => timers.current.forEach(window.clearTimeout), [])
+
+  const briefly = (setter: (value: boolean) => void) => {
+    setter(true)
+    timers.current.push(window.setTimeout(() => setter(false), 1600))
+  }
 
   const handleCopyAll = async () => {
     if (await onCopyAll()) {
-      setCopiedAll(true)
-      window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => setCopiedAll(false), 1600)
+      briefly(setCopiedAll)
+    }
+  }
+
+  const handleShare = async () => {
+    if (await onShare()) briefly(setShared)
+  }
+
+  const handleSaveCard = async () => {
+    try {
+      await onSaveCard()
+      briefly(setSaved)
+    } catch {
+      // The app reports rendering errors in its existing alert area.
     }
   }
 
@@ -109,6 +135,20 @@ export function Controls({
         Readable pairs
       </button>
 
+      <button
+        type="button"
+        onClick={onToggleHowItWorks}
+        aria-pressed={showHowItWorks}
+        aria-expanded={showHowItWorks}
+        className={`rounded-full px-3 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+          showHowItWorks
+            ? 'bg-ink text-paper'
+            : 'text-ink-soft hover:bg-well hover:text-ink'
+        }`}
+      >
+        How it works
+      </button>
+
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-sm text-ink-soft">
           Export as
@@ -130,6 +170,23 @@ export function Controls({
           className="rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper transition-transform hover:scale-[1.03] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink active:scale-95"
         >
           <span aria-live="polite">{copiedAll ? 'Copied ✓' : 'Copy all'}</span>
+        </button>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={handleShare}
+          className="rounded-full px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        >
+          <span aria-live="polite">{shared ? 'Link copied ✓' : 'Share'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleSaveCard}
+          className="rounded-full px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        >
+          <span aria-live="polite">{saved ? 'Saved ✓' : 'Save PNG'}</span>
         </button>
       </div>
     </div>

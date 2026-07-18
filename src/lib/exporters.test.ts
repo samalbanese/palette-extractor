@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { toCssVariables, toTailwind, toJson, exportPalette } from './exporters'
+import {
+  toCssVariables,
+  toTailwind,
+  toJson,
+  toScss,
+  toSvg,
+  exportPalette,
+} from './exporters'
 
 const palette = [
   { r: 46, g: 49, b: 99 },
@@ -35,6 +42,7 @@ describe('toJson (acceptance: valid, paste-ready JSON)', () => {
     const parsed = JSON.parse(toJson(palette))
     expect(parsed).toHaveLength(3)
     expect(parsed[0]).toEqual({
+      name: 'Prussian Blue',
       hex: '#2e3163',
       rgb: 'rgb(46, 49, 99)',
       hsl: 'hsl(237, 37%, 28%)',
@@ -42,10 +50,36 @@ describe('toJson (acceptance: valid, paste-ready JSON)', () => {
   })
 })
 
+describe('toScss', () => {
+  it('produces one paste-ready variable per color', () => {
+    expect(toScss(palette)).toBe(
+      '$palette-1: #2e3163;\n' +
+        '$palette-2: #f0b45e;\n' +
+        '$palette-3: #3f6f74;'
+    )
+  })
+})
+
+describe('toSvg', () => {
+  it('produces a standalone strip with swatches and luminance-aware labels', () => {
+    const svg = toSvg(palette)
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)
+    expect(svg).toContain('width="360"')
+    expect(svg.match(/<rect /g)).toHaveLength(3)
+    expect(svg).toContain('fill="#2e3163"')
+    expect(svg).toContain('fill="#f0b45e"')
+    expect(svg).toContain('fill="#fffdf8"')
+    expect(svg).toContain('fill="#14120c"')
+    expect(svg.endsWith('</svg>')).toBe(true)
+  })
+})
+
 describe('exportPalette', () => {
   it('dispatches to the right formatter for each format', () => {
     expect(exportPalette(palette, 'css')).toContain(':root')
     expect(exportPalette(palette, 'tailwind')).toContain('@theme')
+    expect(exportPalette(palette, 'scss')).toContain('$palette-1')
+    expect(exportPalette(palette, 'svg')).toContain('<svg')
     expect(() => JSON.parse(exportPalette(palette, 'json'))).not.toThrow()
   })
 })

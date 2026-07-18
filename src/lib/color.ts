@@ -78,13 +78,17 @@ export function labelColorFor(rgb: RGB): string {
 
 export type SortMode = 'original' | 'hue' | 'luminance'
 
-export function sortPalette(palette: RGB[], mode: SortMode): RGB[] {
+export function sortPalette<T extends RGB | { color: RGB }>(
+  palette: T[],
+  mode: SortMode
+): T[] {
   if (mode === 'original') return palette
   const sorted = [...palette]
+  const colorOf = (entry: T): RGB => 'color' in entry ? entry.color : entry
   if (mode === 'hue') {
     sorted.sort((a, b) => {
-      const ha = rgbToHsl(a)
-      const hb = rgbToHsl(b)
+      const ha = rgbToHsl(colorOf(a))
+      const hb = rgbToHsl(colorOf(b))
       // Group near-grays (very low saturation) at the end, then sort by hue.
       const aGray = ha.s < 8 ? 1 : 0
       const bGray = hb.s < 8 ? 1 : 0
@@ -92,7 +96,9 @@ export function sortPalette(palette: RGB[], mode: SortMode): RGB[] {
       return ha.h - hb.h || ha.l - hb.l
     })
   } else {
-    sorted.sort((a, b) => relativeLuminance(b) - relativeLuminance(a))
+    sorted.sort(
+      (a, b) => relativeLuminance(colorOf(b)) - relativeLuminance(colorOf(a))
+    )
   }
   return sorted
 }
