@@ -24,7 +24,10 @@ snippet, or JSON — with one click each.
 
 ## Current priority
 
-Version 1 is live on Cloudflare Pages, and all the spec's stretch goals
-shipped in v1.1: contrast pairing, sorting, URL extraction, and color
-locking. The tool is feature-complete for now — future work is polish or
-new ideas, not the spec.
+Version 1.2 turned the tool into a portfolio showpiece: the "How it works"
+view shows the extraction algorithm actually thinking in 3D color space,
+swatches are sized by how much of the image they cover and carry real
+color names, and a palette can leave the page as a share link, a PNG
+palette card, or five copy formats. Next step is deploying v1.2 and giving
+it a once-over on my phone. After that, the only idea on the shelf is live
+camera extraction.

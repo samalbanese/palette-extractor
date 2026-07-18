@@ -3,10 +3,20 @@ import sampleSrc from './assets/sample.svg'
 import { Swatch } from './components/Swatch'
 import { Controls } from './components/Controls'
 import { ContrastPanel } from './components/ContrastPanel'
+import { PixelSpace } from './components/PixelSpace'
 import { type RGB, type SortMode, rgbToHex, sortPalette } from './lib/color'
-import { extractPalette, resolveImageUrl } from './lib/extract'
+import {
+  extractPaletteDetailed,
+  resolveImageUrl,
+  type ExtractionDetail,
+} from './lib/extract'
 import { type ExportFormat, exportPalette } from './lib/exporters'
 import { copyText } from './lib/clipboard'
+import type { Pixel, SplitStep, WeightedColor } from './lib/medianCut'
+import { nearestColorName } from './lib/names'
+import { decodePaletteHash, encodePaletteHash } from './lib/share'
+import { downloadBlob, renderPaletteCard } from './lib/paletteCard'
+import { updatePaletteFavicon } from './lib/favicon'
 
 interface LoadedImage {
   src: string
@@ -24,16 +34,22 @@ function nameFromUrl(url: string): string {
 }
 
 export default function App() {
+  const [sharedPalette] = useState(() => decodePaletteHash(location.hash))
   const [image, setImage] = useState<LoadedImage>({
     src: sampleSrc,
     name: 'Sample image',
   })
-  const [palette, setPalette] = useState<RGB[]>([])
-  const [locked, setLocked] = useState<RGB[]>([])
-  const [count, setCount] = useState(6)
+  const [palette, setPalette] = useState<WeightedColor[]>([])
+  const [pixels, setPixels] = useState<Pixel[]>([])
+  const [steps, setSteps] = useState<SplitStep[]>([])
+  const [locked, setLocked] = useState<RGB[]>(() => sharedPalette ?? [])
+  const [count, setCount] = useState(() =>
+    sharedPalette ? Math.min(10, Math.max(4, sharedPalette.length)) : 6
+  )
   const [sort, setSort] = useState<SortMode>('original')
   const [format, setFormat] = useState<ExportFormat>('css')
   const [showContrast, setShowContrast] = useState(false)
+  const [showHowItWorks, setShowHowItWorks] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const [extracting, setExtracting] = useState(false)
@@ -42,6 +58,11 @@ export default function App() {
   const objectUrl = useRef<string | null>(null)
   const dragDepth = useRef(0)
   const requestId = useRef(0)
+
+  useEffect(() => {
+    if (!sharedPalette) return
+    history.replaceState(null, '', location.pathname + location.search)
+  }, [sharedPalette])
 
   const loadFile = useCallback((file: File | undefined | null) => {
     if (!file) return
@@ -78,15 +99,33 @@ export default function App() {
     const id = ++requestId.current
     setExtracting(true)
     const remaining = count - locked.length
-    const run = async (): Promise<RGB[]> => {
-      if (remaining <= 0) return locked.slice(0, count)
-      const extracted = await extractPalette(image.src, remaining, locked)
-      return [...locked, ...extracted]
+    const run = async (): Promise<ExtractionDetail> => {
+      if (remaining <= 0) {
+        return {
+          colors: locked.slice(0, count).map((color) => ({ color, population: 1 })),
+          pixels: [],
+          steps: [],
+        }
+      }
+      const detail = await extractPaletteDetailed(image.src, remaining, locked)
+      const meanPopulation = detail.colors.length
+        ? detail.colors.reduce((sum, entry) => sum + entry.population, 0)
+          / detail.colors.length
+        : 1
+      return {
+        ...detail,
+        colors: [
+          ...locked.map((color) => ({ color, population: meanPopulation })),
+          ...detail.colors,
+        ],
+      }
     }
     run()
-      .then((colors) => {
+      .then((detail) => {
         if (requestId.current !== id) return
-        setPalette(colors)
+        setPalette(detail.colors)
+        setPixels(detail.pixels)
+        setSteps(detail.steps)
         setError(null)
       })
       .catch((err: Error) => {
@@ -155,10 +194,43 @@ export default function App() {
   }
 
   const sorted = sortPalette(palette, sort)
+  const sortedColors = sorted.map((entry) => entry.color)
+  const totalPopulation = sorted.reduce((sum, entry) => sum + entry.population, 0)
   // Remount swatches when the palette itself changes so the rise animation replays.
   const paletteKey = `${image.src}-${count}-${sort}-${lockedKey}`
 
-  const handleCopyAll = () => copyText(exportPalette(sorted, format))
+  const handleCopyAll = () => copyText(exportPalette(sortedColors, format))
+  const handleShare = () =>
+    copyText(
+      location.origin
+        + location.pathname
+        + encodePaletteHash(sortedColors)
+    )
+  const handleSaveCard = async () => {
+    try {
+      if (sortedColors.length === 0) {
+        throw new Error('Wait for the palette to finish extracting.')
+      }
+      const blob = await renderPaletteCard(
+        sortedColors.map((color) => ({
+          color,
+          name: nearestColorName(color),
+        })),
+        image.name
+      )
+      const firstHex = rgbToHex(sortedColors[0]).slice(1)
+      downloadBlob(blob, `palette-${firstHex}.png`)
+    } catch (err) {
+      setError((err as Error).message)
+      throw err
+    }
+  }
+
+  const faviconKey = sortedColors.map(rgbToHex).join(',')
+  useEffect(() => {
+    updatePaletteFavicon(sortedColors)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faviconKey])
 
   return (
     <div className="flex min-h-dvh flex-col bg-paper font-sans text-ink">
@@ -215,13 +287,15 @@ export default function App() {
           }`}
           key={paletteKey}
         >
-          {sorted.map((color, i) => (
+          {sorted.map((entry, i) => (
             <Swatch
-              key={i}
-              color={color}
+              key={`${rgbToHex(entry.color)}-${i}`}
+              color={entry.color}
               index={i}
-              locked={lockedSet.has(rgbToHex(color))}
-              onToggleLock={() => toggleLock(color)}
+              locked={lockedSet.has(rgbToHex(entry.color))}
+              weight={totalPopulation ? entry.population / totalPopulation : 0}
+              name={nearestColorName(entry.color)}
+              onToggleLock={() => toggleLock(entry.color)}
             />
           ))}
         </div>
@@ -235,12 +309,19 @@ export default function App() {
             format={format}
             onFormatChange={setFormat}
             onCopyAll={handleCopyAll}
+            onShare={handleShare}
+            onSaveCard={handleSaveCard}
             showContrast={showContrast}
             onToggleContrast={() => setShowContrast((v) => !v)}
+            showHowItWorks={showHowItWorks}
+            onToggleHowItWorks={() => setShowHowItWorks((v) => !v)}
           />
         </div>
 
-        {showContrast && <ContrastPanel palette={sorted} />}
+        {showHowItWorks && (
+          <PixelSpace pixels={pixels} steps={steps} palette={sorted} />
+        )}
+        {showContrast && <ContrastPanel palette={sortedColors} />}
       </main>
 
       <footer className="px-5 pb-5 pt-2 sm:px-10">

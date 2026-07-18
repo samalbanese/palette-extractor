@@ -12,7 +12,15 @@ backend, no keys, no server cost.
 - 4–10 dominant colors (default 6) shown as large swatches
 - Lock a color to keep it while the rest of the palette re-extracts around it
 - One-click copy for hex, RGB, and HSL with visible confirmation
-- "Copy all" as CSS variables, a Tailwind v4 `@theme` block, or JSON
+- "Copy all" as CSS variables, a Tailwind v4 `@theme` block, SCSS
+  variables, a standalone SVG swatch strip, or JSON (with color names)
+- Swatch sizes reflect dominance — each color's share of the image sets its
+  width, and every swatch carries a designer-friendly name ("Dusty Rose")
+- "How it works": an animated view of the image's pixels plotted in a
+  rotating RGB color cube while the median-cut algorithm visibly splits it
+  into the final palette
+- Share a palette as a link (`#p=...` hash — opens as locked swatches
+  anyone can riff on) or download it as a designed PNG palette card
 - Sort the palette as-found, by hue, or by lightness
 - "Readable pairs" panel: which palette colors meet WCAG contrast as
   text/background, with ratios and AAA / AA / AA-Large levels; click a pair

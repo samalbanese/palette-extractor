@@ -1,5 +1,11 @@
 import type { RGB } from './color'
-import { medianCut, colorDistanceSq, type Pixel } from './medianCut'
+import {
+  colorDistanceSq,
+  medianCutTrace,
+  type Pixel,
+  type SplitStep,
+  type WeightedColor,
+} from './medianCut'
 
 /**
  * Longest edge of the downscaled working canvas. Median cut only needs a
@@ -15,6 +21,13 @@ const MAX_DIMENSION = 160
 const LOCK_EXCLUSION_DISTANCE = 60
 
 const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG."
+const MAX_PLOT_PIXELS = 3000
+
+export interface ExtractionDetail {
+  colors: WeightedColor[]
+  pixels: Pixel[]
+  steps: SplitStep[]
+}
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -57,6 +70,15 @@ export async function extractPalette(
   count: number,
   exclude: RGB[] = []
 ): Promise<RGB[]> {
+  const detail = await extractPaletteDetailed(src, count, exclude)
+  return detail.colors.map((entry) => entry.color)
+}
+
+export async function extractPaletteDetailed(
+  src: string,
+  count: number,
+  exclude: RGB[] = []
+): Promise<ExtractionDetail> {
   const img = await loadImage(src)
   const width = img.naturalWidth || img.width
   const height = img.naturalHeight || img.height
@@ -96,5 +118,15 @@ export async function extractPalette(
     if (filtered.length > 0) pixels = filtered
   }
 
-  return medianCut(pixels, count)
+  const { result, steps } = medianCutTrace(pixels, count)
+  return { colors: result, pixels: uniformSample(pixels), steps }
+}
+
+function uniformSample(pixels: Pixel[]): Pixel[] {
+  if (pixels.length <= MAX_PLOT_PIXELS) return [...pixels]
+  const stride = pixels.length / MAX_PLOT_PIXELS
+  return Array.from(
+    { length: MAX_PLOT_PIXELS },
+    (_, index) => pixels[Math.floor(index * stride)]
+  )
 }

@@ -23,6 +23,22 @@
   }
 }
 
+.weighted-swatch {
+  min-height: var(--swatch-mobile-height);
+}
+
+@media (min-width: 40rem) {
+  .weighted-swatch {
+    min-height: 0;
+    flex-grow: var(--swatch-grow);
+  }
+
+  .weighted-swatch:hover,
+  .weighted-swatch:focus-within {
+    flex-grow: calc(var(--swatch-grow) + 0.65);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
