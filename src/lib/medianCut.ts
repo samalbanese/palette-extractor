@@ -2,6 +2,17 @@ import type { RGB } from './color'
 
 export type Pixel = [number, number, number]
 
+export interface WeightedColor {
+  color: RGB
+  population: number
+}
+
+export interface SplitStep extends Array<{
+  bounds: { min: Pixel; max: Pixel }
+  color: RGB
+  population: number
+}> {}
+
 /**
  * Median-cut color quantization, implemented from scratch (spec stretch
  * goal). Repeatedly splits the pixel box with the highest score at the
@@ -12,10 +23,30 @@ export type Pixel = [number, number, number]
  * (rescues small-but-distinct accent colors that population alone ignores).
  */
 export function medianCut(pixels: Pixel[], count: number): RGB[] {
-  if (pixels.length === 0 || count < 1) return []
+  return medianCutWeighted(pixels, count).map((entry) => entry.color)
+}
+
+export function medianCutWeighted(pixels: Pixel[], count: number): WeightedColor[] {
+  return runMedianCut(pixels, count, false).result
+}
+
+export function medianCutTrace(
+  pixels: Pixel[],
+  count: number
+): { steps: SplitStep[]; result: WeightedColor[] } {
+  return runMedianCut(pixels, count, true)
+}
+
+function runMedianCut(
+  pixels: Pixel[],
+  count: number,
+  trace: boolean
+): { steps: SplitStep[]; result: WeightedColor[] } {
+  if (pixels.length === 0 || count < 1) return { steps: [], result: [] }
 
   let boxes: Pixel[][] = [pixels]
   const populationSplits = Math.ceil(count * 0.75)
+  const steps: SplitStep[] = trace ? [snapshot(boxes)] : []
 
   while (boxes.length < count) {
     const byVolume = boxes.length >= populationSplits
@@ -44,20 +75,34 @@ export function medianCut(pixels: Pixel[], count: number): RGB[] {
       | 1
       | 2
     boxes.splice(bestIndex, 1, ...splitBox(box, widest))
+    if (trace) steps.push(snapshot(boxes))
   }
 
   const colors = boxes
     .map((box) => ({ population: box.length, color: averageColor(box) }))
     .sort((a, b) => b.population - a.population)
-    .map((entry) => entry.color)
 
-  const seen = new Set<string>()
-  return colors.filter(({ r, g, b }) => {
+  const merged = new Map<string, WeightedColor>()
+  for (const entry of colors) {
+    const { r, g, b } = entry.color
     const key = `${r},${g},${b}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+    const existing = merged.get(key)
+    if (existing) existing.population += entry.population
+    else merged.set(key, { color: entry.color, population: entry.population })
+  }
+
+  return {
+    steps,
+    result: [...merged.values()].sort((a, b) => b.population - a.population),
+  }
+}
+
+function snapshot(boxes: Pixel[][]): SplitStep {
+  return boxes.map((box) => ({
+    bounds: channelBounds(box),
+    color: averageColor(box),
+    population: box.length,
+  }))
 }
 
 /**
@@ -87,6 +132,11 @@ function splitBox(box: Pixel[], channel: 0 | 1 | 2): [Pixel[], Pixel[]] {
 }
 
 function channelRanges(box: Pixel[]): [number, number, number] {
+  const { min, max } = channelBounds(box)
+  return [max[0] - min[0], max[1] - min[1], max[2] - min[2]]
+}
+
+function channelBounds(box: Pixel[]): { min: Pixel; max: Pixel } {
   let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0
   for (const [r, g, b] of box) {
     if (r < minR) minR = r
@@ -96,7 +146,7 @@ function channelRanges(box: Pixel[]): [number, number, number] {
     if (b < minB) minB = b
     if (b > maxB) maxB = b
   }
-  return [maxR - minR, maxG - minG, maxB - minB]
+  return { min: [minR, minG, minB], max: [maxR, maxG, maxB] }
 }
 
 function averageColor(box: Pixel[]): RGB {
