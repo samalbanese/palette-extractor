@@ -22,6 +22,38 @@ const near = (a: { r: number; g: number; b: number }, c: [number, number, number
   colorDistanceSq(a, { r: c[0], g: c[1], b: c[2] }) < 20 ** 2
 
 describe('medianCut', () => {
+  it('returns a source color instead of an off-image average for one mixed box', () => {
+    const red: Pixel = [250, 10, 10]
+    const blue: Pixel = [10, 10, 250]
+    const pixels = [
+      ...Array.from({ length: 20 }, () => red),
+      ...Array.from({ length: 20 }, () => blue),
+    ]
+
+    const [color] = medianCut(pixels, 1)
+
+    expect([red, blue]).toContainEqual([color.r, color.g, color.b])
+    expect(color).toEqual({ r: red[0], g: red[1], b: red[2] })
+    expect(color).not.toEqual({ r: 130, g: 10, b: 130 })
+  })
+
+  it('returns only colors present in a mixed source pixel set', () => {
+    const pixels: Pixel[] = [
+      ...cluster([230, 25, 35], 17, 5),
+      ...cluster([30, 210, 80], 13, 7),
+      ...cluster([45, 65, 225], 11, 4),
+      ...cluster([235, 205, 30], 9, 6),
+    ]
+    const sourceColors = new Set(pixels.map((pixel) => pixel.join(',')))
+
+    for (const count of [1, 3, 8]) {
+      const palette = medianCut(pixels, count)
+      for (const { r, g, b } of palette) {
+        expect(sourceColors.has(`${r},${g},${b}`)).toBe(true)
+      }
+    }
+  })
+
   it('recovers well-separated color clusters', () => {
     const red: [number, number, number] = [200, 30, 30]
     const green: [number, number, number] = [30, 200, 30]
@@ -100,6 +132,12 @@ describe('weighted median cut and trace', () => {
     expect(traced.steps[traced.steps.length - 1]).toHaveLength(
       traced.result.length
     )
+    const sourceColors = new Set(pixels.map((pixel) => pixel.join(',')))
+    for (const step of traced.steps) {
+      for (const { color } of step) {
+        expect(sourceColors.has(`${color.r},${color.g},${color.b}`)).toBe(true)
+      }
+    }
     expect(traced.result).toEqual(weighted)
   })
 

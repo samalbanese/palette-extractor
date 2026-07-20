@@ -16,7 +16,8 @@ export interface SplitStep extends Array<{
 /**
  * Median-cut color quantization, implemented from scratch (spec stretch
  * goal). Repeatedly splits the pixel box with the highest score at the
- * median of its widest channel, then averages each final box.
+ * median of its widest channel, then selects a representative source pixel
+ * from each final box.
  *
  * Like the classic MMCQ algorithm, early splits are scored by population
  * (finds the dominant colors) and later splits by population x volume
@@ -79,7 +80,7 @@ function runMedianCut(
   }
 
   const colors = boxes
-    .map((box) => ({ population: box.length, color: averageColor(box) }))
+    .map((box) => ({ population: box.length, color: representativeColor(box) }))
     .sort((a, b) => b.population - a.population)
 
   const merged = new Map<string, WeightedColor>()
@@ -100,7 +101,7 @@ function runMedianCut(
 function snapshot(boxes: Pixel[][]): SplitStep {
   return boxes.map((box) => ({
     bounds: channelBounds(box),
-    color: averageColor(box),
+    color: representativeColor(box),
     population: box.length,
   }))
 }
@@ -161,6 +162,29 @@ function averageColor(box: Pixel[]): RGB {
     g: Math.round(g / box.length),
     b: Math.round(b / box.length),
   }
+}
+
+/**
+ * A box average can fall between clusters and invent a color that appears
+ * nowhere in the image, so snap to the box pixel nearest the average.
+ * Strict `<` keeps the first-encountered pixel on ties.
+ */
+function representativeColor(box: Pixel[]): RGB {
+  const { r: ar, g: ag, b: ab } = averageColor(box)
+  let closestIndex = 0
+  let closestDistance = Infinity
+
+  for (let i = 0; i < box.length; i++) {
+    const [r, g, b] = box[i]
+    const distance = (r - ar) ** 2 + (g - ag) ** 2 + (b - ab) ** 2
+    if (distance < closestDistance) {
+      closestIndex = i
+      closestDistance = distance
+    }
+  }
+
+  const [r, g, b] = box[closestIndex]
+  return { r, g, b }
 }
 
 /** Squared Euclidean distance in RGB space. */
