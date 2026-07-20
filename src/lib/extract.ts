@@ -9,9 +9,12 @@ import {
 
 /**
  * Longest edge of the downscaled working canvas. Median cut only needs a
- * statistical sample of the image, not every pixel of a 12-megapixel photo.
+ * statistical sample of the image, not every pixel of a 12-megapixel photo —
+ * but too small a sample lets the canvas downscaler blend fine details into
+ * colors that never existed. 320 measured ~140ms desktop / well under 1s on
+ * mobile-class hardware; sluggishness starts around 512.
  */
-const MAX_DIMENSION = 160
+const MAX_DIMENSION = 320
 
 /**
  * Pixels closer than this (Euclidean RGB distance) to a locked color are
