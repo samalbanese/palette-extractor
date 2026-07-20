@@ -8,3 +8,10 @@ artifacts/
 *.md
 !README.md
 docs/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
