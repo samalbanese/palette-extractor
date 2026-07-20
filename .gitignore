@@ -11,3 +11,10 @@ TODO.md
 CHANGELOG.md
 PALETTE_EXTRACTOR_SPEC.md
 docs/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
