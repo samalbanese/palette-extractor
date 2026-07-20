@@ -1,0 +1,10 @@
+node_modules/
+dist/
+artifacts/
+*.local
+.DS_Store
+
+# Local working notes (not part of the public repo)
+*.md
+!README.md
+docs/
