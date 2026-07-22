@@ -1,6 +1,6 @@
 # Palette Extractor
 
-Upload an image, get its color palette. Runs entirely in the browser — no
+Upload an image, get its color palette. Runs entirely in the browser: no
 backend, no keys, no server cost.
 
 **Live features**
@@ -14,12 +14,12 @@ backend, no keys, no server cost.
 - One-click copy for hex, RGB, and HSL with visible confirmation
 - "Copy all" as CSS variables, a Tailwind v4 `@theme` block, SCSS
   variables, a standalone SVG swatch strip, or JSON (with color names)
-- Swatch sizes reflect dominance — each color's share of the image sets its
+- Swatch sizes reflect dominance. Each color's share of the image sets its
   width, and every swatch carries a designer-friendly name ("Dusty Rose")
 - "How it works": an animated view of the image's pixels plotted in a
   rotating RGB color cube while the median-cut algorithm visibly splits it
   into the final palette
-- Share a palette as a link (`#p=...` hash — opens as locked swatches
+- Share a palette as a link (a `#p=...` hash that opens as locked swatches
   anyone can riff on) or download it as a designed PNG palette card
 - Sort the palette as-found, by hue, or by lightness
 - "Readable pairs" panel: which palette colors meet WCAG contrast as
@@ -31,8 +31,8 @@ backend, no keys, no server cost.
 
 ## Stack
 
-React 18 · Vite · Tailwind CSS 4 · TypeScript · Vitest — no other runtime
-dependencies; quantization is implemented in `src/lib/medianCut.ts`
+React 18, Vite, Tailwind CSS 4, TypeScript, and Vitest. No other runtime
+dependencies; quantization is implemented from scratch in `src/lib/medianCut.ts`.
 
 ## Develop
 
@@ -50,9 +50,3 @@ Cloudflare Pages, connected to this GitHub repository:
 - Build command: `npm run build`
 - Build output directory: `dist`
 - No environment variables needed
-
-## Project docs
-
-- `PALETTE_EXTRACTOR_SPEC.md` — the original specification
-- `VISION.md` — plain-language goals and non-goals
-- `CLAUDE.md` — working notes for AI agents

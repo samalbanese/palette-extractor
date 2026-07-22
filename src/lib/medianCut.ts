@@ -14,10 +14,9 @@ export interface SplitStep extends Array<{
 }> {}
 
 /**
- * Median-cut color quantization, implemented from scratch (spec stretch
- * goal). Repeatedly splits the pixel box with the highest score at the
- * median of its widest channel, then selects a representative source pixel
- * from each final box.
+ * Median-cut color quantization, implemented from scratch. Repeatedly
+ * splits the pixel box with the highest score at the median of its widest
+ * channel, then selects a representative source pixel from each final box.
  *
  * Like the classic MMCQ algorithm, early splits are scored by population
  * (finds the dominant colors) and later splits by population x volume
