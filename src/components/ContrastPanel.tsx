@@ -1,82 +1,94 @@
-import { useEffect, useRef, useState } from 'react'
-import { type RGB, rgbToHex } from '../lib/color'
-import { readablePairs } from '../lib/contrast'
-import { copyText } from '../lib/clipboard'
+import { useEffect, useRef, useState } from "react";
+import { type RGB, rgbToHex, labelColorFor } from "../lib/color";
+import { readablePairs } from "../lib/contrast";
+import { copyText } from "../lib/clipboard";
 
-interface ContrastPanelProps {
-  palette: RGB[]
-}
-
-/**
- * Shows which extracted colors work together as text on background per WCAG,
- * strongest pairing first. Clicking a pair copies it as ready-to-paste CSS.
- */
-export function ContrastPanel({ palette }: ContrastPanelProps) {
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
-  const timer = useRef<number>()
-
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-
-  const pairs = readablePairs(palette)
-
+export function ContrastPanel({ palette }: { palette: RGB[] }) {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
+  const timer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const pairs = readablePairs(palette);
   const handleCopy = async (index: number, fg: string, bg: string) => {
-    const ok = await copyText(`color: ${fg};\nbackground-color: ${bg};`)
-    if (!ok) return
-    setCopiedIndex(index)
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setCopiedIndex(null), 1400)
-  }
-
+    if (!(await copyText(`color: ${fg};\nbackground-color: ${bg};`))) {
+      setFailed(true);
+      return;
+    }
+    setFailed(false);
+    setCopiedIndex(index);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopiedIndex(null), 1600);
+  };
   return (
-    <section aria-label="Readable color pairs" className="px-5 pb-2 sm:px-10">
-      <h2 className="text-sm font-medium">Readable pairs</h2>
-      <p className="mt-0.5 text-sm text-ink-soft">
-        Palette colors that meet WCAG contrast for text — AAA is 7:1+, AA is
-        4.5:1+, AA&nbsp;Large is 3:1+ (headlines only). Click a pair to copy it
-        as CSS.
-      </p>
-
-      {pairs.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-soft">
-          No two colors in this palette are far enough apart for readable text.
-          Try more colors, or an image with lights and darks.
+    <section className="contrast-panel" aria-label="Readable color pairs">
+      <div className="contrast-heading">
+        <div>
+          <span className="eyebrow">BEAUTIFUL IS ONLY THE BEGINNING</span>
+          <h2>Make it readable.</h2>
+          <p>
+            Real contrast ratios between your colors, strongest first. Select a
+            pairing to copy its text and background as CSS.
+          </p>
+        </div>
+        <div className="contrast-legend">
+          <span>AAA ≥ 7:1</span>
+          <span>AA ≥ 4.5:1</span>
+          <span>Large text ≥ 3:1</span>
+        </div>
+      </div>
+      {failed && (
+        <p role="alert">
+          Clipboard unavailable. Use Export palette to select and copy the
+          values.
         </p>
+      )}
+      {!pairs.length ? (
+        <div className="contrast-empty">
+          These colors are too close in brightness for readable text together.
+          Try a different image or include more colors. A beautiful palette can
+          still need a separate light or dark text color.
+        </div>
       ) : (
-        <ul className="mt-4 grid list-none grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
+        <ul className="contrast-grid">
           {pairs.map((pair, i) => {
-            const fg = rgbToHex(pair.fg)
-            const bg = rgbToHex(pair.bg)
+            const fg = rgbToHex(pair.fg),
+              bg = rgbToHex(pair.bg);
             return (
               <li key={`${fg}-${bg}`}>
                 <button
-                  type="button"
-                  onClick={() => handleCopy(i, fg, bg)}
+                  className="contrast-pair"
+                  onClick={() => void handleCopy(i, fg, bg)}
                   aria-label={`Copy CSS for ${fg} text on ${bg}, contrast ${pair.ratio.toFixed(2)} to 1, ${pair.level}`}
-                  className="w-full rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                 >
                   <span
-                    className="grid h-16 place-items-center rounded-lg border border-line text-xl font-semibold"
-                    style={{ backgroundColor: bg, color: fg }}
+                    className="contrast-sample"
+                    style={{ background: bg, color: fg }}
                   >
-                    Aa
+                    <span>Aa</span>
+                    <span style={{ color: labelColorFor(pair.bg) }}>
+                      {(Math.floor(pair.ratio * 100) / 100).toFixed(2)}:1
+                      <br />
+                      {pair.level === "AA Large"
+                        ? "Large text only"
+                        : pair.level}
+                    </span>
                   </span>
-                  <span className="mt-1.5 flex items-baseline justify-between gap-2 px-0.5">
-                    <span className="truncate font-mono text-xs text-ink-soft" aria-live="polite">
-                      {copiedIndex === i ? 'copied ✓' : `${fg} on ${bg}`}
-                    </span>
-                    <span className="shrink-0 font-mono text-xs text-ink-soft">
-                      {pair.ratio.toFixed(1)}
-                      <span className="ml-1.5 rounded-full border border-line px-1.5 py-px text-[10px] tracking-wide text-ink">
-                        {pair.level}
-                      </span>
-                    </span>
+                  <span className="contrast-meta">
+                    <code aria-live="polite">
+                      {copiedIndex === i ? "Copied CSS!" : `${fg} / ${bg}`}
+                    </code>
+                    <span>{pair.level}</span>
                   </span>
                 </button>
               </li>
-            )
+            );
           })}
         </ul>
       )}
+      <p className="palette-hint">
+        WCAG 2 contrast for text. Large text means at least 24px regular or
+        about 19px bold. This checks color pairs, not an entire design.
+      </p>
     </section>
-  )
+  );
 }

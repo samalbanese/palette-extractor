@@ -1,119 +1,146 @@
-import { useEffect, useRef, useState } from 'react'
-import { rgbToHex } from '../lib/color'
-import type { Pixel, SplitStep, WeightedColor } from '../lib/medianCut'
+import { useEffect, useRef, useState } from "react";
+import { rgbToHex } from "../lib/color";
+import type { Pixel, SplitStep, WeightedColor } from "../lib/medianCut";
+import { Icon } from "./Icon";
 
 interface PixelSpaceProps {
-  pixels: Pixel[]
-  steps: SplitStep[]
-  palette: WeightedColor[]
+  pixels: Pixel[];
+  steps: SplitStep[];
+  palette: WeightedColor[];
 }
 
 interface Point2D {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
 const BOX_EDGES: Array<[number, number]> = [
-  [0, 1], [0, 2], [0, 4],
-  [1, 3], [1, 5],
-  [2, 3], [2, 6],
+  [0, 1],
+  [0, 2],
+  [0, 4],
+  [1, 3],
+  [1, 5],
+  [2, 3],
+  [2, 6],
   [3, 7],
-  [4, 5], [4, 6],
+  [4, 5],
+  [4, 6],
   [5, 7],
   [6, 7],
-]
+];
 
 export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [replay, setReplay] = useState(0)
-  const [reducedMotion, setReducedMotion] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [replay, setReplay] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => setReducedMotion(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new IntersectionObserver(([entry]) =>
+      setVisible(entry.isIntersecting),
+    );
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [pixels.length]);
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
-    let frame = 0
-    let lastFrame = 0
-    let lastStep = 0
-    let stepIndex = reducedMotion ? Math.max(0, steps.length - 1) : 0
-    const startedAt = performance.now()
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let frame = 0;
+    let lastFrame = 0;
+    let lastStep = 0;
+    let stepIndex = reducedMotion || paused ? Math.max(0, steps.length - 1) : 0;
+    setActiveStep(stepIndex);
+    const startedAt = performance.now();
 
     const resize = () => {
-      const bounds = canvas.getBoundingClientRect()
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.max(1, Math.round(bounds.width * dpr))
-      canvas.height = Math.max(1, Math.round(bounds.height * dpr))
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      draw(performance.now())
-    }
+      const bounds = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(bounds.width * dpr));
+      canvas.height = Math.max(1, Math.round(bounds.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw(performance.now());
+    };
 
     const project = (
       point: Pixel,
       angle: number,
       width: number,
-      height: number
+      height: number,
     ): Point2D => {
-      const x = point[0] - 127.5
-      const y = point[1] - 127.5
-      const z = point[2] - 127.5
-      const cosY = Math.cos(angle)
-      const sinY = Math.sin(angle)
-      const rotatedX = x * cosY + z * sinY
-      const rotatedZ = -x * sinY + z * cosY
-      const tilt = Math.PI / 9
-      const rotatedY = y * Math.cos(tilt) - rotatedZ * Math.sin(tilt)
-      const scale = (Math.min(width, height) - 44) / 360
+      const x = point[0] - 127.5;
+      const y = point[1] - 127.5;
+      const z = point[2] - 127.5;
+      const cosY = Math.cos(angle);
+      const sinY = Math.sin(angle);
+      const rotatedX = x * cosY + z * sinY;
+      const rotatedZ = -x * sinY + z * cosY;
+      const tilt = Math.PI / 9;
+      const rotatedY = y * Math.cos(tilt) - rotatedZ * Math.sin(tilt);
+      const scale = (Math.min(width, height) - 44) / 360;
       return {
         x: width / 2 + rotatedX * scale,
         y: height / 2 - rotatedY * scale,
-      }
-    }
+      };
+    };
 
     const drawBox = (
-      bounds: SplitStep[number]['bounds'],
+      bounds: SplitStep[number]["bounds"],
       angle: number,
       width: number,
       height: number,
-      stroke: string
+      stroke: string,
     ) => {
-      const { min, max } = bounds
+      const { min, max } = bounds;
       const corners: Pixel[] = [
-        [min[0], min[1], min[2]], [max[0], min[1], min[2]],
-        [min[0], max[1], min[2]], [max[0], max[1], min[2]],
-        [min[0], min[1], max[2]], [max[0], min[1], max[2]],
-        [min[0], max[1], max[2]], [max[0], max[1], max[2]],
-      ]
-      const projected = corners.map((corner) => project(corner, angle, width, height))
-      ctx.beginPath()
+        [min[0], min[1], min[2]],
+        [max[0], min[1], min[2]],
+        [min[0], max[1], min[2]],
+        [max[0], max[1], min[2]],
+        [min[0], min[1], max[2]],
+        [max[0], min[1], max[2]],
+        [min[0], max[1], max[2]],
+        [max[0], max[1], max[2]],
+      ];
+      const projected = corners.map((corner) =>
+        project(corner, angle, width, height),
+      );
+      ctx.beginPath();
       for (const [from, to] of BOX_EDGES) {
-        ctx.moveTo(projected[from].x, projected[from].y)
-        ctx.lineTo(projected[to].x, projected[to].y)
+        ctx.moveTo(projected[from].x, projected[from].y);
+        ctx.lineTo(projected[to].x, projected[to].y);
       }
-      ctx.strokeStyle = stroke
-      ctx.lineWidth = 1
-      ctx.stroke()
-    }
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
 
     const draw = (now: number) => {
-      const bounds = canvas.getBoundingClientRect()
-      const width = bounds.width
-      const height = bounds.height
-      const angle = reducedMotion
-        ? Math.PI / 4
-        : ((now - startedAt) / 12000) * Math.PI * 2
-      ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = '#f7f5f0'
-      ctx.fillRect(0, 0, width, height)
+      const bounds = canvas.getBoundingClientRect();
+      const width = bounds.width;
+      const height = bounds.height;
+      const angle =
+        reducedMotion || paused
+          ? Math.PI / 4
+          : ((now - startedAt) / 12000) * Math.PI * 2;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#1b1e20";
+      ctx.fillRect(0, 0, width, height);
 
       // Faint frame of the full RGB cube grounds the rotation spatially.
       drawBox(
@@ -121,110 +148,210 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
         angle,
         width,
         height,
-        'oklch(0.26 0.012 80 / 0.1)'
-      )
+        "rgba(218, 226, 231, 0.15)",
+      );
 
-      ctx.globalAlpha = 0.65
+      ctx.globalAlpha = 0.9;
       for (const pixel of pixels) {
-        const point = project(pixel, angle, width, height)
-        ctx.fillStyle = `rgb(${pixel[0]} ${pixel[1]} ${pixel[2]})`
-        ctx.fillRect(point.x - 1.3, point.y - 1.3, 2.6, 2.6)
+        const point = project(pixel, angle, width, height);
+        ctx.fillStyle = `rgb(${pixel[0]} ${pixel[1]} ${pixel[2]})`;
+        ctx.fillRect(point.x - 1.3, point.y - 1.3, 2.6, 2.6);
       }
-      ctx.globalAlpha = 1
+      ctx.globalAlpha = 1;
 
-      const current = steps[stepIndex]
+      const current = steps[stepIndex];
       if (current) {
         for (const box of current) {
-          drawBox(box.bounds, angle, width, height, 'oklch(0.26 0.012 80 / 0.35)')
+          drawBox(
+            box.bounds,
+            angle,
+            width,
+            height,
+            "rgba(218, 226, 231, 0.42)",
+          );
         }
       }
 
-      const atFinal = steps.length === 0 || stepIndex === steps.length - 1
+      const atFinal = steps.length === 0 || stepIndex === steps.length - 1;
       if (atFinal) {
-        const finals = current
-          ?? palette.map((entry) => ({ color: entry.color, population: entry.population }))
-        const total = finals.reduce((sum, entry) => sum + entry.population, 0)
+        const finals =
+          current ??
+          palette.map((entry) => ({
+            color: entry.color,
+            population: entry.population,
+          }));
+        const total = finals.reduce((sum, entry) => sum + entry.population, 0);
         for (const { color, population } of finals) {
           // Dot size tracks how much of the image the color covers.
-          const radius = 4.5 + Math.sqrt(total ? population / total : 0) * 7
-          const point = project([color.r, color.g, color.b], angle, width, height)
-          ctx.beginPath()
-          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2)
-          ctx.fillStyle = rgbToHex(color)
-          ctx.fill()
-          ctx.strokeStyle = '#f7f5f0'
-          ctx.lineWidth = 1.5
-          ctx.stroke()
+          const radius = 4.5 + Math.sqrt(total ? population / total : 0) * 7;
+          const point = project(
+            [color.r, color.g, color.b],
+            angle,
+            width,
+            height,
+          );
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = rgbToHex(color);
+          ctx.fill();
+          ctx.strokeStyle = "#e5dfd2";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
         }
       }
-    }
+    };
 
     const tick = (now: number) => {
-      if (document.visibilityState !== 'visible') return
-      if (!reducedMotion && steps.length > 1 && stepIndex < steps.length - 1) {
-        if (!lastStep) lastStep = now
+      if (document.visibilityState !== "visible" || !visible) return;
+      if (
+        !reducedMotion &&
+        !paused &&
+        steps.length > 1 &&
+        stepIndex < steps.length - 1
+      ) {
+        if (!lastStep) lastStep = now;
         if (now - lastStep >= 700) {
-          stepIndex += 1
-          lastStep = now
+          stepIndex += 1;
+          setActiveStep(stepIndex);
+          lastStep = now;
         }
       }
       if (now - lastFrame >= 1000 / 30) {
-        draw(now)
-        lastFrame = now
+        draw(now);
+        lastFrame = now;
       }
-      if (!reducedMotion) frame = requestAnimationFrame(tick)
-    }
+      if (!reducedMotion && !paused) frame = requestAnimationFrame(tick);
+    };
 
     const start = () => {
-      cancelAnimationFrame(frame)
-      if (document.visibilityState === 'visible') {
-        if (reducedMotion) draw(performance.now())
-        else frame = requestAnimationFrame(tick)
+      cancelAnimationFrame(frame);
+      if (document.visibilityState === "visible" && visible) {
+        if (reducedMotion || paused) draw(performance.now());
+        else frame = requestAnimationFrame(tick);
       }
-    }
-    const onVisibility = () => start()
-    const observer = new ResizeObserver(resize)
-    observer.observe(canvas)
-    document.addEventListener('visibilitychange', onVisibility)
-    resize()
-    start()
+    };
+    const onVisibility = () => start();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    document.addEventListener("visibilitychange", onVisibility);
+    resize();
+    start();
 
     return () => {
-      cancelAnimationFrame(frame)
-      observer.disconnect()
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [palette, pixels, reducedMotion, replay, steps])
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [palette, pixels, reducedMotion, replay, steps, paused, visible]);
 
   return (
-    <section aria-labelledby="pixel-space-heading" className="px-5 pb-4 sm:px-10">
-      <h2 id="pixel-space-heading" className="text-sm font-medium">How it works</h2>
-      <p className="mt-0.5 max-w-5xl text-sm text-ink-soft">
-        Every pixel of your image, plotted in RGB color space. Median cut
-        repeatedly splits the most important box at the median of its widest
-        channel — each final box&apos;s average becomes a swatch.
-      </p>
+    <section aria-labelledby="pixel-space-heading" className="algorithm-panel">
+      <div className="panel-intro">
+        <span className="eyebrow">THE METHOD BEHIND THE MOOD</span>
+        <h2 id="pixel-space-heading">
+          A little color science.
+          <br />
+          No black box.
+        </h2>
+        <p>
+          The actual sampled pixels from your image, mapped into
+          three-dimensional color space. Watch them become a palette.
+        </p>
+        <ol className="step-list">
+          <li>
+            <b>1</b>
+            <span>
+              <strong>Sample the image.</strong>
+              <br />
+              Resize to 320px and skip transparent pixels.
+            </span>
+          </li>
+          <li>
+            <b>2</b>
+            <span>
+              <strong>Find the color families.</strong>
+              <br />
+              Median cut divides the widest color ranges into smaller groups.
+            </span>
+          </li>
+          <li>
+            <b>3</b>
+            <span>
+              <strong>Keep a real color.</strong>
+              <br />
+              Pick the sampled pixel nearest each group&apos;s average.
+            </span>
+          </li>
+        </ol>
+        <div className="algorithm-stats">
+          <div>
+            <strong>{pixels.length.toLocaleString()}</strong>
+            <span>pixels visualized</span>
+          </div>
+          <div>
+            <strong>{steps[activeStep]?.length ?? 0}</strong>
+            <span>color groups</span>
+          </div>
+          <div>
+            <strong>100%</strong>
+            <span>in your browser</span>
+          </div>
+        </div>
+      </div>
       {pixels.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-soft">
-          Every color is locked, so nothing was extracted. Unlock a color or
-          load a new image to watch the algorithm work.
+        <p className="contrast-empty">
+          No pixels to plot yet. Add an image and leave at least one color
+          unlocked to watch the algorithm work.
         </p>
       ) : (
-        <canvas
-          ref={canvasRef}
-          aria-label="Image pixels rotating in an RGB color cube while median-cut boxes split into the final palette"
-          className="mt-4 h-[300px] w-full max-w-xl rounded-xl border border-line bg-paper sm:h-[380px]"
-        />
-      )}
-      {!reducedMotion && pixels.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setReplay((value) => value + 1)}
-          className="mt-2 rounded-full px-2 py-1 text-sm text-ink-soft transition-colors hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-        >
-          Replay
-        </button>
+        <div className="algorithm-canvas">
+          <div className="cube-topline">
+            <span>RGB / COLOR SPACE</span>
+            <span>
+              {paused || reducedMotion
+                ? "STATIC VIEW"
+                : "LIVE EXTRACTION TRACE"}
+            </span>
+          </div>
+          <canvas
+            ref={canvasRef}
+            aria-label="Image pixels rotating in an RGB color cube while median-cut boxes split into the final palette"
+          />
+          <div className="cube-bottomline">
+            <div className="cube-legend">
+              <span style={{ color: "#e8a69e" }}>
+                <i />R
+              </span>
+              <span style={{ color: "#afccb6" }}>
+                <i />G
+              </span>
+              <span style={{ color: "#9fbdde" }}>
+                <i />B
+              </span>
+            </div>
+            <div className="animation-controls">
+              {!reducedMotion && (
+                <>
+                  <button onClick={() => setPaused((v) => !v)}>
+                    {paused ? "Play animation" : "Static view"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPaused(false);
+                      setReplay((v) => v + 1);
+                    }}
+                  >
+                    <Icon name="refresh" size={12} /> Replay
+                  </button>
+                </>
+              )}
+            </div>
+            <span>
+              {activeStep + 1} / {steps.length} steps
+            </span>
+          </div>
+        </div>
       )}
     </section>
-  )
+  );
 }
