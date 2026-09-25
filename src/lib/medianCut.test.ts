@@ -8,9 +8,8 @@ import {
   medianCutWeighted,
   colorDistanceSq,
   type Pixel,
-  type SplitStep,
 } from "./medianCut";
-import { oklabCoords } from "./oklab";
+import { srgbToOklab } from "./oklab";
 
 /** Build a cluster of n pixels tightly scattered around a center color. */
 function cluster(
@@ -265,73 +264,51 @@ describe("oklab mode", () => {
     }
   });
 
-  // All four centers sit inside a small, deliberately dark 0-25 RGB cube, so
-  // no single center dominates the combined box's channel range on its own:
-  // whichever pair ends up widest along one axis is what the split picks,
-  // and that depends on which color space measures the width.
-  //
-  // A1 [23,5,21] / A2 [12,15,18]: squared RGB distance 230, squared OKLab
-  // distance (in the rescaled 0-255 domain) 141 -- OKLab coordinates
-  // [40,138,122] and [42,127,126]. This is the pair that ends up widest on
-  // an OKLab axis.
-  // B1 [19,7,15] / B2 [19,11,4]: squared RGB distance 137, squared OKLab
-  // distance 81 -- OKLab coordinates [39,134,125] and [40,130,133]. This is
-  // the pair that ends up widest on an RGB axis.
-  it("splits a perceptually distinct pair that RGB keeps together, and keeps together a pair RGB splits", () => {
-    const A1: Pixel = [23, 5, 21];
-    const A2: Pixel = [12, 15, 18];
-    const B1: Pixel = [19, 7, 15];
-    const B2: Pixel = [19, 11, 4];
-
-    expect(
-      colorDistanceSq(
-        { r: A1[0], g: A1[1], b: A1[2] },
-        { r: A2[0], g: A2[1], b: A2[2] },
-      ),
-    ).toBe(230);
-    expect(
-      colorDistanceSq(
-        { r: B1[0], g: B1[1], b: B1[2] },
-        { r: B2[0], g: B2[1], b: B2[2] },
-      ),
-    ).toBe(137);
-
-    const pixels: Pixel[] = [
-      ...cluster(A1, 25, 1),
-      ...cluster(A2, 25, 1),
-      ...cluster(B1, 25, 1),
-      ...cluster(B2, 25, 1),
-    ];
-
-    const rgbSteps = medianCutTrace(pixels, 2).steps;
-    const okSteps = medianCutTrace(pixels, 2, { colorSpace: "oklab" }).steps;
-    const rgbFinal = rgbSteps[rgbSteps.length - 1];
-    const okFinal = okSteps[okSteps.length - 1];
-
-    const boxOf = (step: SplitStep, coords: Pixel) =>
-      step.findIndex(
-        ({ bounds: { min, max } }) =>
-          coords[0] >= min[0] &&
-          coords[0] <= max[0] &&
-          coords[1] >= min[1] &&
-          coords[1] <= max[1] &&
-          coords[2] >= min[2] &&
-          coords[2] <= max[2],
+  // Three greens, two swatches. The medium and bright greens are only 40
+  // apart in RGB but clearly different to the eye (OKLab distance 0.122).
+  // The bright green and the yellow-green are 50 apart in RGB yet nearly
+  // indistinguishable (OKLab distance 0.016, close to the smallest step
+  // people notice). RGB spends a swatch on the near-duplicate; OKLab spends
+  // it on the difference a viewer can actually see.
+  it("groups the colors that look alike rather than the ones with close RGB values", () => {
+    const medium: Pixel = [0, 120, 0];
+    const bright: Pixel = [0, 160, 0];
+    const yellowGreen: Pixel = [50, 160, 0];
+    const oklabDistance = (p: Pixel, q: Pixel) => {
+      const a = srgbToOklab({ r: p[0], g: p[1], b: p[2] });
+      const b = srgbToOklab({ r: q[0], g: q[1], b: q[2] });
+      return Math.hypot(a.L - b.L, a.a - b.a, a.b - b.b);
+    };
+    const rgbDistance = (p: Pixel, q: Pixel) =>
+      Math.sqrt(
+        colorDistanceSq(
+          { r: p[0], g: p[1], b: p[2] },
+          { r: q[0], g: q[1], b: q[2] },
+        ),
       );
-
-    // RGB keeps the perceptually distinct pair (A) in the same box, and
-    // splits the perceptually similar pair (B) apart instead.
-    expect(boxOf(rgbFinal, A1)).toBe(boxOf(rgbFinal, A2));
-    expect(boxOf(rgbFinal, B1)).not.toBe(boxOf(rgbFinal, B2));
-
-    // OKLab does the opposite: it splits the perceptually distinct pair (A)
-    // apart, and keeps the perceptually similar pair (B) together.
-    expect(boxOf(okFinal, oklabCoords(A1))).not.toBe(
-      boxOf(okFinal, oklabCoords(A2)),
+    // The premise: RGB and OKLab disagree about which pair is closer.
+    expect(rgbDistance(medium, bright)).toBeLessThan(
+      rgbDistance(bright, yellowGreen),
     );
-    expect(boxOf(okFinal, oklabCoords(B1))).toBe(
-      boxOf(okFinal, oklabCoords(B2)),
+    expect(oklabDistance(medium, bright)).toBeGreaterThan(
+      5 * oklabDistance(bright, yellowGreen),
     );
+
+    const pixels = [
+      ...cluster(medium, 40, 3),
+      ...cluster(bright, 40, 3),
+      ...cluster(yellowGreen, 40, 3),
+    ];
+    // Whichever cluster ends up alone in its own box is the one the color
+    // space considers most different from the other two.
+    const loner = (colorSpace: "rgb" | "oklab") => {
+      const result = medianCutWeighted(pixels, 2, { colorSpace });
+      expect(result.map((entry) => entry.population)).toEqual([80, 40]);
+      return result[1].color;
+    };
+
+    expect(near(loner("rgb"), yellowGreen)).toBe(true);
+    expect(near(loner("oklab"), medium)).toBe(true);
   });
 
   it("returns an empty palette for empty input", () => {
