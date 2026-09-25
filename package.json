@@ -1,6 +1,6 @@
 {
   "name": "palette-extractor",
-  "description": "Upload an image, get its color palette — client-side React tool",
+  "description": "Extract a color palette from any image, entirely in the browser",
   "private": true,
   "version": "1.0.0",
   "type": "module",
