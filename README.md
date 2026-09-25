@@ -36,7 +36,7 @@ flowchart LR
 
 ### Engineering decisions
 
-- **Quantize off the main thread.** Each extraction runs in its own Web Worker, so the interface stays responsive on large photos. When a newer image or setting supersedes a run, an `AbortController` terminates its worker, and a request counter discards stale URL loads. A failed upload leaves the last good palette in place.
+- **Quantize off the main thread.** Each extraction runs in its own Web Worker, so the interface stays responsive on large photos. The downscaled canvas's raw pixel buffer is transferred to the worker rather than copied, and the worker filters and collects pixels itself, so the main thread only draws and hands off. When a newer image or setting supersedes a run, an `AbortController` terminates its worker, and a request counter discards stale URL loads. A failed upload leaves the last good palette in place.
 - **Sample small, on purpose.** The image is drawn to a canvas with a longest edge of 320 px. That size came from benchmarking: 512 px took about four times as long with no visible gain, while 160 px let downscaling blur fine details into colors that were not in the photo.
 - **Median cut, written from scratch.** There is no quantization library. Early splits go to the most populous box, which finds the dominant colors. The final quarter of splits weighs population by box volume in RGB space, which rescues small but distinct accents that population alone would ignore.
 - **Cut between clusters, not through them.** Instead of splitting exactly at the median, the cut point moves toward the middle of the wider side of the range, which tends to land in the gap between two color clusters.
@@ -48,14 +48,15 @@ Swatches are colors from the downscaled sample, and resizing can blend neighbori
 
 ## Performance
 
-| Measure                                 | Result                                                             |
-| --------------------------------------- | ------------------------------------------------------------------ |
-| 12 MP photo, upload to rendered palette | ~0.4 s median, ~0.8 s with 4× CPU throttling                       |
-| JavaScript, gzipped                     | 62 kB including React; the worker adds 2 kB                        |
-| CSS, gzipped                            | 7 kB                                                               |
-| Lighthouse, desktop (live site)         | Performance 100 · Accessibility 100 · Best practices 100 · SEO 100 |
+| Measure                                 | Result                                                                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 12 MP photo, upload to rendered palette | ~0.4 s median, ~0.8 s with 4× CPU throttling                                                              |
+| JavaScript, gzipped                     | 60 kB including React at first load; the other tool panels load on demand (4 kB) and the worker adds 1 kB |
+| CSS, gzipped                            | 7 kB                                                                                                      |
+| Lighthouse, desktop (live site)         | Performance 100 · Accessibility 100 · Best practices 100 · SEO 100                                        |
+| Lighthouse, mobile (production build)   | Performance 92 · Total blocking time 92 ms · Largest paint 2.7 s                                          |
 
-Extraction timings come from the production build in Chromium on an AMD Ryzen 7 5800X3D.
+Extraction timings come from the production build in Chromium on an AMD Ryzen 7 5800X3D. Mobile Lighthouse figures are the median of four runs with DevTools throttling (slow 4G, 4× CPU slowdown); the build before the pixel work moved into the worker scored 85, 191 ms and 3.6 s on the same setup.
 
 ## Project structure
 
