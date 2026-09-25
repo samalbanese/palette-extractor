@@ -28,31 +28,31 @@ function collectPixels(data: Uint8ClampedArray): Pixel[] {
 }
 
 /**
- * Distance used to exclude pixels near a pinned color, so re-extraction
+ * Builds the test for pixels too close to a pinned color, so re-extraction
  * finds genuinely different colors for the unpinned slots. RGB mode keeps
- * its original threshold; OKLab mode measures the same 0.1-unit tolerance
- * in the rescaled 0-255 OKLab domain instead.
+ * its original threshold; OKLab mode uses a 0.1-unit tolerance, measured in
+ * the rescaled 0-255 OKLab domain. Pinned colors are converted once here
+ * rather than once per pixel.
  */
-function isNearExcluded(
-  pixel: Pixel,
+function nearPinned(
   exclude: RGB[],
   colorSpace: ColorSpace,
-): boolean {
+): (pixel: Pixel) => boolean {
   if (colorSpace === "oklab") {
-    const coords = oklabCoords(pixel);
-    return exclude.some((c) => {
-      const excludedCoords = oklabCoords([c.r, c.g, c.b]);
-      const distance =
-        (coords[0] - excludedCoords[0]) ** 2 +
-        (coords[1] - excludedCoords[1]) ** 2 +
-        (coords[2] - excludedCoords[2]) ** 2;
-      return distance < (0.1 * 255) ** 2;
-    });
+    const pinned = exclude.map((c) => oklabCoords([c.r, c.g, c.b]));
+    const limit = (0.1 * 255) ** 2;
+    return (pixel) => {
+      const [l, a, b] = oklabCoords(pixel);
+      return pinned.some(
+        (p) => (l - p[0]) ** 2 + (a - p[1]) ** 2 + (b - p[2]) ** 2 < limit,
+      );
+    };
   }
-  return exclude.some(
-    (c) =>
-      colorDistanceSq({ r: pixel[0], g: pixel[1], b: pixel[2] }, c) < 60 ** 2,
-  );
+  return (pixel) =>
+    exclude.some(
+      (c) =>
+        colorDistanceSq({ r: pixel[0], g: pixel[1], b: pixel[2] }, c) < 60 ** 2,
+    );
 }
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
@@ -62,9 +62,8 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     if (!all.length) throw new Error(TRANSPARENT);
 
     const { count, exclude, colorSpace } = request;
-    const filtered = exclude.length
-      ? all.filter((p) => !isNearExcluded(p, exclude, colorSpace))
-      : all;
+    const isNearPinned = nearPinned(exclude, colorSpace);
+    const filtered = exclude.length ? all.filter((p) => !isNearPinned(p)) : all;
     const pixels = filtered.length ? filtered : all;
     const { result, steps } = medianCutTrace(pixels, count, { colorSpace });
     const stride = pixels.length / Math.min(pixels.length, 3000);
