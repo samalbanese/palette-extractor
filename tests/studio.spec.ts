@@ -7,6 +7,19 @@ async function ready(page: Page) {
   );
   await expect(page.locator(".swatch").first()).toBeVisible();
 }
+// Contrast is only meaningful once entrance animations finish; mid-fade
+// swatches blend with the page and read darker than they render at rest.
+async function settled(page: Page) {
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every(
+        (a) =>
+          a.playState !== "running" ||
+          a.effect?.getTiming().iterations === Infinity,
+      ),
+  );
+}
 const svg = (color: string) =>
   Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${color}"/></svg>`,
@@ -223,6 +236,7 @@ for (const width of [390, 768, 1440]) {
           () => document.documentElement.scrollWidth <= window.innerWidth,
         ),
       ).toBe(true);
+      await settled(page);
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
         .analyze();
@@ -319,6 +333,7 @@ test("all pinned colors survive count limits and simple palettes explain low con
   await expect(
     page.getByText("They need a partner.", { exact: false }),
   ).toBeVisible();
+  await settled(page);
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
