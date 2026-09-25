@@ -2197,3 +2197,81 @@ select {
     font-size: 9px;
   }
 }
+
+/* Hold every label, value, caption, button, tab, and helper string at a
+   legible size on phones. This wins the cascade by being the last matching
+   rule for each selector at this width, without touching wider layouts. */
+@media (max-width: 580px) {
+  .panel-intro > p,
+  .contrast-panel .contrast-heading p,
+  .site-footer,
+  .brand-body p,
+  .palette-hint,
+  .workbench-nav > button,
+  .source-actions > span,
+  .brand-bottom,
+  .swatch-info button code,
+  .swatch-grid.format-rgb .swatch-info button code,
+  .swatch-grid.format-hsl .swatch-info button code,
+  .sample-row button span,
+  .intro .eyebrow,
+  .swatch-info > span,
+  .eyebrow,
+  .brand-kicker,
+  code,
+  kbd,
+  samp,
+  pre,
+  .brand-cta,
+  .sample-row > span,
+  .panel-intro > .button,
+  .dock-actions .button,
+  .panel-intro > .contrast-note,
+  .image-caption > span + span,
+  .swatch-select,
+  .error-banner,
+  .image-caption,
+  .header-right > a,
+  .inspector > span,
+  .inspector button,
+  .text-button,
+  .source-actions .text-button,
+  .brand-nav > span,
+  .count-control,
+  .sort-label,
+  .contrast-legend,
+  .contrast-sample > span:last-child,
+  .contrast-meta,
+  .section-label h2 > span,
+  .section-label h2 b,
+  .step-list li,
+  .step-list b,
+  .animation-controls button,
+  .cube-topline,
+  .cube-bottomline,
+  .algorithm-stats span,
+  .export-select,
+  .code-heading,
+  .code-window pre,
+  .value-switch button {
+    font-size: 12px;
+  }
+  /* The tab labels no longer fit on one line at 12px; let them wrap
+     instead of forcing the row wider than the viewport. */
+  .workbench-nav > button {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.15;
+  }
+  /* rgb()/hsl() values are the longest strings in a swatch; free up the
+     couple of pixels the lock icon and its gap were taking so the value
+     itself has room at 12px. */
+  .swatch-grid.format-rgb .swatch-info button,
+  .swatch-grid.format-hsl .swatch-info button {
+    gap: 0;
+  }
+  .swatch-grid.format-rgb .swatch-info button svg,
+  .swatch-grid.format-hsl .swatch-info button svg {
+    width: 9px;
+  }
+}
