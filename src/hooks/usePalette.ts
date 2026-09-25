@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { type RGB, type SortMode, rgbToHex, sortPalette } from "../lib/color";
 import { extractPaletteDetailed, type ExtractionDetail } from "../lib/extract";
 import { updatePaletteFavicon } from "../lib/favicon";
@@ -59,29 +65,32 @@ export function usePalette({
               )
               .slice(0, remaining)
           : [];
-      setDetail({
-        ...next,
-        colors: [
-          ...locked.map((color) => ({ color, population: 0 })),
-          ...unlocked,
-        ],
-        ...(remaining <= 0 ? { pixels: [], steps: [] } : {}),
+      // Deprioritized: lets the browser paint whatever's already on screen
+      // (the source image, in particular) before committing this update.
+      startTransition(() => {
+        setDetail({
+          ...next,
+          colors: [
+            ...locked.map((color) => ({ color, population: 0 })),
+            ...unlocked,
+          ],
+          ...(remaining <= 0 ? { pixels: [], steps: [] } : {}),
+        });
+        setLoaded(source);
+        setSelectedHex(null);
+        setError(null);
+        setNotice(
+          `${locked.length + unlocked.length} colors ready from ${source.name}.`,
+        );
+        setExtracting(false);
       });
-      setLoaded(source);
-      setSelectedHex(null);
-      setError(null);
-      setNotice(
-        `${locked.length + unlocked.length} colors ready from ${source.name}.`,
-      );
     };
-    void run()
-      .catch((err: Error) => {
-        if (!controller.signal.aborted)
-          setError(`${err.message} Your last palette is still available.`);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setExtracting(false);
-      });
+    void run().catch((err: Error) => {
+      if (!controller.signal.aborted) {
+        setError(`${err.message} Your last palette is still available.`);
+        setExtracting(false);
+      }
+    });
     return () => controller.abort();
   }, [source, count, locked]);
 

@@ -1,11 +1,25 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import sunset from "./assets/sample.svg";
 import { Swatch, type ValueKind } from "./components/Swatch";
-import { ContrastPanel } from "./components/ContrastPanel";
-import { PixelSpace } from "./components/PixelSpace";
 import { ThemePreview } from "./components/ThemePreview";
-import { ExportPanel } from "./components/ExportPanel";
 import { Icon } from "./components/Icon";
+
+// The default tab on load is "In context" (ThemePreview, imported above).
+// The other three tool panels are heavier and off screen until picked, so
+// their code loads in its own chunk instead of the initial bundle.
+const ContrastPanel = lazy(() =>
+  import("./components/ContrastPanel").then((m) => ({
+    default: m.ContrastPanel,
+  })),
+);
+const PixelSpace = lazy(() =>
+  import("./components/PixelSpace").then((m) => ({ default: m.PixelSpace })),
+);
+const ExportPanel = lazy(() =>
+  import("./components/ExportPanel").then((m) => ({
+    default: m.ExportPanel,
+  })),
+);
 import {
   type SortMode,
   rgbToHex,
@@ -196,6 +210,10 @@ export default function App() {
                 <img
                   src={(loaded ?? source)!.src}
                   alt={(loaded ?? source)!.name}
+                  width={1400}
+                  height={788}
+                  fetchPriority="high"
+                  decoding="async"
                   crossOrigin={
                     /^https?:/i.test((loaded ?? source)!.src)
                       ? "anonymous"
@@ -526,26 +544,28 @@ export default function App() {
             {activeTab === "context" && (
               <ThemePreview palette={colors} image={loaded?.src ?? null} />
             )}
-            {activeTab === "contrast" && <ContrastPanel palette={colors} />}
-            {activeTab === "algorithm" && (
-              <PixelSpace
-                pixels={palette.detail.pixels}
-                steps={palette.detail.steps}
-                palette={sorted}
-              />
-            )}
-            {activeTab === "export" && (
-              <ExportPanel
-                palette={colors}
-                format={format}
-                onFormatChange={(value) => {
-                  setFormat(value);
-                  copyFeedback.setCopied(null);
-                }}
-                onCopy={() => copy(exportPalette(colors, format), "export")}
-                copied={copied === "export"}
-              />
-            )}
+            <Suspense fallback={null}>
+              {activeTab === "contrast" && <ContrastPanel palette={colors} />}
+              {activeTab === "algorithm" && (
+                <PixelSpace
+                  pixels={palette.detail.pixels}
+                  steps={palette.detail.steps}
+                  palette={sorted}
+                />
+              )}
+              {activeTab === "export" && (
+                <ExportPanel
+                  palette={colors}
+                  format={format}
+                  onFormatChange={(value) => {
+                    setFormat(value);
+                    copyFeedback.setCopied(null);
+                  }}
+                  onCopy={() => copy(exportPalette(colors, format), "export")}
+                  copied={copied === "export"}
+                />
+              )}
+            </Suspense>
           </div>
         </section>
       </main>

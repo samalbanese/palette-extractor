@@ -1,5 +1,6 @@
 import type { RGB } from "./color";
 import type { Pixel, SplitStep, WeightedColor } from "./medianCut";
+import type { WorkerRequest } from "./quantize.worker";
 const MAX_DIMENSION = 320;
 const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG.";
 export interface ExtractionDetail {
@@ -81,6 +82,44 @@ export async function extractPalette(
   );
 }
 
+/**
+ * Builds the message to hand off to the quantizer worker. The draw and pixel
+ * read still happen here on the main thread (identical to the original
+ * single-threaded path), but only the raw pixel buffer is transferred to the
+ * worker — a zero-copy handoff — instead of building a Pixel[] array and
+ * structured-cloning it, which is what made this step expensive before.
+ */
+function buildWorkerRequest(
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  count: number,
+  exclude: RGB[],
+): { request: WorkerRequest; transfer: Transferable[] } {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Canvas is not available in this browser.");
+  ctx.drawImage(img, 0, 0, width, height);
+  let imageData: ImageData;
+  try {
+    imageData = ctx.getImageData(0, 0, width, height);
+  } catch {
+    throw new Error(UNREADABLE);
+  }
+  return {
+    request: {
+      buffer: imageData.data.buffer,
+      width,
+      height,
+      count,
+      exclude,
+    },
+    transfer: [imageData.data.buffer],
+  };
+}
+
 export async function extractPaletteDetailed(
   src: string,
   count: number,
@@ -92,21 +131,17 @@ export async function extractPaletteDetailed(
     height = img.naturalHeight || img.height;
   if (!width || !height) throw new Error(UNREADABLE);
   const scale = Math.min(1, MAX_DIMENSION / Math.max(width, height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("Canvas is not available in this browser.");
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const all: Pixel[] = [];
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] >= 125) all.push([data[i], data[i + 1], data[i + 2]]);
-  }
-  if (!all.length)
-    throw new Error(
-      "That image is fully transparent. Choose an image with visible pixels.",
-    );
+  const canvasWidth = Math.max(1, Math.round(width * scale));
+  const canvasHeight = Math.max(1, Math.round(height * scale));
+
+  const { request, transfer } = buildWorkerRequest(
+    img,
+    canvasWidth,
+    canvasHeight,
+    count,
+    exclude,
+  );
+
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new DOMException("Extraction cancelled.", "AbortError"));
@@ -140,6 +175,6 @@ export async function extractPaletteDetailed(
         ),
       );
     };
-    worker.postMessage({ all, count, exclude });
+    worker.postMessage(request, transfer);
   });
 }
