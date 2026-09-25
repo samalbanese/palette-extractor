@@ -94,8 +94,18 @@ export default function App() {
 
   const { source, loaded, error, dragging, urlBusy, showUrl, url, fileInput } =
     imageSource;
-  const { sorted, colors, total, lockedSet, count, locked, sort, busy } =
-    palette;
+  const {
+    sorted,
+    colors,
+    total,
+    lockedSet,
+    count,
+    locked,
+    sort,
+    busy,
+    colorSpace,
+    changedHexes,
+  } = palette;
   const { copied, notice } = copyFeedback;
 
   const selected = colors.find((c) => rgbToHex(c) === selectedHex) ?? colors[0];
@@ -357,6 +367,7 @@ export default function App() {
                     onSelect={() => setSelectedHex(rgbToHex(entry.color))}
                     showWeight={showWeights}
                     canLock={!!source}
+                    changed={changedHexes.has(rgbToHex(entry.color))}
                   />
                 ))}
               </div>
@@ -398,6 +409,30 @@ export default function App() {
                   <option value="luminance">By lightness</option>
                 </select>
               </label>
+              <fieldset
+                className="colorspace-switch"
+                disabled={!source || busy}
+              >
+                <legend>Color space</legend>
+                <label className={colorSpace === "rgb" ? "active" : ""}>
+                  <input
+                    type="radio"
+                    name="color-space"
+                    checked={colorSpace === "rgb"}
+                    onChange={() => palette.setColorSpace("rgb")}
+                  />
+                  RGB
+                </label>
+                <label className={colorSpace === "oklab" ? "active" : ""}>
+                  <input
+                    type="radio"
+                    name="color-space"
+                    checked={colorSpace === "oklab"}
+                    onChange={() => palette.setColorSpace("oklab")}
+                  />
+                  Perceptual
+                </label>
+              </fieldset>
               {locked.length > 0 && source && (
                 <button
                   className="text-button"
@@ -548,6 +583,7 @@ export default function App() {
                   pixels={palette.detail.pixels}
                   steps={palette.detail.steps}
                   palette={sorted}
+                  colorSpace={colorSpace}
                 />
               )}
               {activeTab === "export" && (

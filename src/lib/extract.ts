@@ -1,5 +1,5 @@
 import type { RGB } from "./color";
-import type { Pixel, SplitStep, WeightedColor } from "./medianCut";
+import type { ColorSpace, Pixel, SplitStep, WeightedColor } from "./medianCut";
 import type { WorkerRequest } from "./quantize.worker";
 const MAX_DIMENSION = 320;
 const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG.";
@@ -95,6 +95,7 @@ function buildWorkerRequest(
   height: number,
   count: number,
   exclude: RGB[],
+  colorSpace: ColorSpace,
 ): { request: WorkerRequest; transfer: Transferable[] } {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -115,6 +116,7 @@ function buildWorkerRequest(
       height,
       count,
       exclude,
+      colorSpace,
     },
     transfer: [imageData.data.buffer],
   };
@@ -125,6 +127,7 @@ export async function extractPaletteDetailed(
   count: number,
   exclude: RGB[] = [],
   signal?: AbortSignal,
+  colorSpace: ColorSpace = "rgb",
 ): Promise<ExtractionDetail> {
   const img = await loadImage(src, signal);
   const width = img.naturalWidth || img.width,
@@ -140,6 +143,7 @@ export async function extractPaletteDetailed(
     canvasHeight,
     count,
     exclude,
+    colorSpace,
   );
 
   return new Promise((resolve, reject) => {

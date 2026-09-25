@@ -1,4 +1,10 @@
-import { colorDistanceSq, medianCutTrace, type Pixel } from "./medianCut";
+import {
+  colorDistanceSq,
+  medianCutTrace,
+  type ColorSpace,
+  type Pixel,
+} from "./medianCut";
+import { oklabCoords } from "./oklab";
 import type { RGB } from "./color";
 
 const TRANSPARENT =
@@ -10,6 +16,7 @@ export interface WorkerRequest {
   height: number;
   count: number;
   exclude: RGB[];
+  colorSpace: ColorSpace;
 }
 
 function collectPixels(data: Uint8ClampedArray): Pixel[] {
@@ -20,24 +27,46 @@ function collectPixels(data: Uint8ClampedArray): Pixel[] {
   return all;
 }
 
+/**
+ * Distance used to exclude pixels near a pinned color, so re-extraction
+ * finds genuinely different colors for the unpinned slots. RGB mode keeps
+ * its original threshold; OKLab mode measures the same 0.1-unit tolerance
+ * in the rescaled 0-255 OKLab domain instead.
+ */
+function isNearExcluded(
+  pixel: Pixel,
+  exclude: RGB[],
+  colorSpace: ColorSpace,
+): boolean {
+  if (colorSpace === "oklab") {
+    const coords = oklabCoords(pixel);
+    return exclude.some((c) => {
+      const excludedCoords = oklabCoords([c.r, c.g, c.b]);
+      const distance =
+        (coords[0] - excludedCoords[0]) ** 2 +
+        (coords[1] - excludedCoords[1]) ** 2 +
+        (coords[2] - excludedCoords[2]) ** 2;
+      return distance < (0.1 * 255) ** 2;
+    });
+  }
+  return exclude.some(
+    (c) =>
+      colorDistanceSq({ r: pixel[0], g: pixel[1], b: pixel[2] }, c) < 60 ** 2,
+  );
+}
+
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   try {
     const request = event.data;
     const all = collectPixels(new Uint8ClampedArray(request.buffer));
     if (!all.length) throw new Error(TRANSPARENT);
 
-    const { count, exclude } = request;
+    const { count, exclude, colorSpace } = request;
     const filtered = exclude.length
-      ? all.filter(
-          (p) =>
-            !exclude.some(
-              (c) =>
-                colorDistanceSq({ r: p[0], g: p[1], b: p[2] }, c) < 60 ** 2,
-            ),
-        )
+      ? all.filter((p) => !isNearExcluded(p, exclude, colorSpace))
       : all;
     const pixels = filtered.length ? filtered : all;
-    const { result, steps } = medianCutTrace(pixels, count);
+    const { result, steps } = medianCutTrace(pixels, count, { colorSpace });
     const stride = pixels.length / Math.min(pixels.length, 3000);
     const sample = Array.from(
       { length: Math.min(pixels.length, 3000) },

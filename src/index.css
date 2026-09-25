@@ -690,6 +690,19 @@ code {
   outline: 2px solid #f1eee8;
   outline-offset: 3px;
 }
+.swatch.changed .swatch-color {
+  outline: 2px solid #e2b869;
+  outline-offset: 3px;
+  animation: swatch-highlight 1.5s ease-out;
+}
+@keyframes swatch-highlight {
+  0% {
+    box-shadow: 0 0 0 5px rgba(226, 184, 105, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(226, 184, 105, 0);
+  }
+}
 .swatch-select {
   position: absolute;
   inset: 0;
@@ -754,9 +767,10 @@ code {
 }
 .palette-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 13px;
+  gap: 10px 13px;
   margin-top: 12px;
   min-height: 44px;
 }
@@ -787,6 +801,49 @@ code {
   gap: 9px;
   color: #a1a3a4;
   font-size: 11px;
+}
+.colorspace-switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #a1a3a4;
+  font-size: 11px;
+}
+.colorspace-switch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.colorspace-switch legend {
+  padding: 0;
+}
+.colorspace-switch label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: 10px var(--font-mono);
+  min-height: 27px;
+  padding: 0 10px;
+  border-radius: 3px;
+  color: #a4a7a8;
+  cursor: pointer;
+}
+.colorspace-switch label + label {
+  margin-left: 2px;
+}
+.colorspace-switch label.active {
+  background: #3b3e40;
+  color: #f5f3ed;
+}
+.colorspace-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.colorspace-switch label:has(input:focus-visible) {
+  outline: 2px solid #f1eee8;
+  outline-offset: 2px;
 }
 select {
   background: #222527;
@@ -1879,6 +1936,13 @@ select {
   .sort-label select {
     font-size: 10px;
   }
+  .colorspace-switch {
+    font-size: 10px;
+    gap: 6px;
+  }
+  .colorspace-switch label {
+    padding: 0 7px;
+  }
   .palette-hint {
     font-size: 9px;
   }
@@ -2142,7 +2206,8 @@ select {
   font-size: 11px;
 }
 .count-control,
-.sort-label {
+.sort-label,
+.colorspace-switch {
   font-size: 12px;
 }
 .swatch-color {
@@ -2173,7 +2238,8 @@ select {
     font-size: 9px;
   }
   .count-control,
-  .sort-label {
+  .sort-label,
+  .colorspace-switch {
     font-size: 11px;
   }
 }
@@ -2239,6 +2305,8 @@ select {
   .brand-nav > span,
   .count-control,
   .sort-label,
+  .colorspace-switch,
+  .colorspace-switch label,
   .contrast-legend,
   .contrast-sample > span:last-child,
   .contrast-meta,

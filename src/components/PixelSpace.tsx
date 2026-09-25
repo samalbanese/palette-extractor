@@ -1,12 +1,32 @@
 import { useEffect, useRef, useState } from "react";
-import { rgbToHex } from "../lib/color";
-import type { Pixel, SplitStep, WeightedColor } from "../lib/medianCut";
+import { rgbToHex, type RGB } from "../lib/color";
+import type {
+  ColorSpace,
+  Pixel,
+  SplitStep,
+  WeightedColor,
+} from "../lib/medianCut";
+import { oklabCoords } from "../lib/oklab";
 import { Icon } from "./Icon";
 
 interface PixelSpaceProps {
   pixels: Pixel[];
   steps: SplitStep[];
   palette: WeightedColor[];
+  colorSpace: ColorSpace;
+}
+
+const MORPH_DURATION_MS = 800;
+
+function coordsFor(rgb: RGB, colorSpace: ColorSpace): Pixel {
+  return colorSpace === "oklab"
+    ? oklabCoords([rgb.r, rgb.g, rgb.b])
+    : [rgb.r, rgb.g, rgb.b];
+}
+
+/** Cubic ease-in-out, used to morph dots between color spaces. */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
 interface Point2D {
@@ -29,13 +49,19 @@ const BOX_EDGES: Array<[number, number]> = [
   [6, 7],
 ];
 
-export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
+export function PixelSpace({
+  pixels,
+  steps,
+  palette,
+  colorSpace,
+}: PixelSpaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [replay, setReplay] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(true);
   const [activeStep, setActiveStep] = useState(0);
+  const previousColorSpace = useRef<ColorSpace>(colorSpace);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -67,6 +93,28 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
     let stepIndex = reducedMotion || paused ? Math.max(0, steps.length - 1) : 0;
     setActiveStep(stepIndex);
     const startedAt = performance.now();
+
+    // Morph dots from their previous color space to the current one. A
+    // switch triggers a short animated transition; anything else (first
+    // mount, replay, a new extraction in the same space) snaps immediately.
+    const fromSpace = previousColorSpace.current;
+    const isSwitch = fromSpace !== colorSpace;
+    previousColorSpace.current = colorSpace;
+    const morphStartedAt = performance.now();
+    const morphAt = (now: number) => {
+      if (!isSwitch || reducedMotion || paused) return 1;
+      return easeInOut(Math.min(1, (now - morphStartedAt) / MORPH_DURATION_MS));
+    };
+    const morphed = (rgb: RGB, now: number): Pixel => {
+      const from = coordsFor(rgb, fromSpace);
+      const to = coordsFor(rgb, colorSpace);
+      const t = morphAt(now);
+      return [
+        from[0] + (to[0] - from[0]) * t,
+        from[1] + (to[1] - from[1]) * t,
+        from[2] + (to[2] - from[2]) * t,
+      ];
+    };
 
     const resize = () => {
       const bounds = canvas.getBoundingClientRect();
@@ -153,7 +201,8 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
 
       ctx.globalAlpha = 0.9;
       for (const pixel of pixels) {
-        const point = project(pixel, angle, width, height);
+        const coords = morphed({ r: pixel[0], g: pixel[1], b: pixel[2] }, now);
+        const point = project(coords, angle, width, height);
         ctx.fillStyle = `rgb(${pixel[0]} ${pixel[1]} ${pixel[2]})`;
         ctx.fillRect(point.x - 1.3, point.y - 1.3, 2.6, 2.6);
       }
@@ -184,12 +233,7 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
         for (const { color, population } of finals) {
           // Dot size tracks how much of the image the color covers.
           const radius = 4.5 + Math.sqrt(total ? population / total : 0) * 7;
-          const point = project(
-            [color.r, color.g, color.b],
-            angle,
-            width,
-            height,
-          );
+          const point = project(morphed(color, now), angle, width, height);
           ctx.beginPath();
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fillStyle = rgbToHex(color);
@@ -242,7 +286,16 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [palette, pixels, reducedMotion, replay, steps, paused, visible]);
+  }, [
+    palette,
+    pixels,
+    reducedMotion,
+    replay,
+    steps,
+    paused,
+    visible,
+    colorSpace,
+  ]);
 
   return (
     <section aria-labelledby="pixel-space-heading" className="algorithm-panel">
@@ -306,7 +359,11 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
       ) : (
         <div className="algorithm-canvas">
           <div className="cube-topline">
-            <span>RGB / COLOR SPACE</span>
+            <span>
+              {colorSpace === "oklab"
+                ? "OKLAB / COLOR SPACE"
+                : "RGB / COLOR SPACE"}
+            </span>
             <span>
               {paused || reducedMotion
                 ? "STATIC VIEW"
@@ -315,7 +372,11 @@ export function PixelSpace({ pixels, steps, palette }: PixelSpaceProps) {
           </div>
           <canvas
             ref={canvasRef}
-            aria-label="Image pixels rotating in an RGB color cube while median-cut boxes split into the final palette"
+            aria-label={
+              colorSpace === "oklab"
+                ? "Image pixels rotating in an OKLab color cube while median-cut boxes split into the final palette"
+                : "Image pixels rotating in an RGB color cube while median-cut boxes split into the final palette"
+            }
           />
           <div className="cube-bottomline">
             <div className="cube-legend">

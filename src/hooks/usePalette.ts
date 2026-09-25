@@ -3,12 +3,16 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { type RGB, type SortMode, rgbToHex, sortPalette } from "../lib/color";
 import { extractPaletteDetailed, type ExtractionDetail } from "../lib/extract";
 import { updatePaletteFavicon } from "../lib/favicon";
+import type { ColorSpace } from "../lib/medianCut";
 import type { Source } from "./useImageSource";
+
+const HIGHLIGHT_DURATION_MS = 1500;
 
 interface UsePaletteOptions {
   source: Source | null;
@@ -42,12 +46,19 @@ export function usePalette({
   const [count, setCount] = useState(initialColors?.length ?? 6);
   const [sort, setSort] = useState<SortMode>("original");
   const [extracting, setExtracting] = useState(!initialColors);
+  const [colorSpace, setColorSpace] = useState<ColorSpace>("rgb");
+  const [changedHexes, setChangedHexes] = useState<Set<string>>(new Set());
+  const previousColorSpace = useRef<ColorSpace>("rgb");
+  const previousUnlockedHexes = useRef<Set<string>>(new Set());
+  const highlightTimeout = useRef<number>();
 
   useEffect(() => {
     if (!source) return;
     const controller = new AbortController();
     setExtracting(true);
     const remaining = count - locked.length;
+    const isSwitch = previousColorSpace.current !== colorSpace;
+    const priorUnlockedHexes = previousUnlockedHexes.current;
     const run = async () => {
       // Validate each new source even when every output slot is pinned.
       const next = await extractPaletteDetailed(
@@ -55,6 +66,7 @@ export function usePalette({
         Math.max(1, remaining),
         locked,
         controller.signal,
+        colorSpace,
       );
       if (controller.signal.aborted) return;
       const unlocked =
@@ -65,6 +77,7 @@ export function usePalette({
               )
               .slice(0, remaining)
           : [];
+      const unlockedHexes = new Set(unlocked.map((e) => rgbToHex(e.color)));
       // Deprioritized: lets the browser paint whatever's already on screen
       // (the source image, in particular) before committing this update.
       startTransition(() => {
@@ -79,11 +92,33 @@ export function usePalette({
         setLoaded(source);
         setSelectedHex(null);
         setError(null);
-        setNotice(
-          `${locked.length + unlocked.length} colors ready from ${source.name}.`,
-        );
+        if (isSwitch) {
+          const changed = new Set(
+            [...unlockedHexes].filter((hex) => !priorUnlockedHexes.has(hex)),
+          );
+          setChangedHexes(changed);
+          window.clearTimeout(highlightTimeout.current);
+          highlightTimeout.current = window.setTimeout(
+            () => setChangedHexes(new Set()),
+            HIGHLIGHT_DURATION_MS,
+          );
+          const total = locked.length + unlocked.length;
+          const label = colorSpace === "oklab" ? "Perceptual" : "RGB";
+          setNotice(
+            changed.size === 0
+              ? "Same colors in both color spaces."
+              : `${label} changed ${changed.size} of ${total} colors.`,
+          );
+        } else {
+          setChangedHexes(new Set());
+          setNotice(
+            `${locked.length + unlocked.length} colors ready from ${source.name}.`,
+          );
+        }
         setExtracting(false);
       });
+      previousColorSpace.current = colorSpace;
+      previousUnlockedHexes.current = unlockedHexes;
     };
     void run().catch((err: Error) => {
       if (!controller.signal.aborted) {
@@ -92,7 +127,9 @@ export function usePalette({
       }
     });
     return () => controller.abort();
-  }, [source, count, locked]);
+  }, [source, count, locked, colorSpace]);
+
+  useEffect(() => () => window.clearTimeout(highlightTimeout.current), []);
 
   const sorted = useMemo(
     () => sortPalette(detail.colors, sort),
@@ -131,6 +168,10 @@ export function usePalette({
     setLocked(colors);
     setCount(colors.length);
     setExtracting(false);
+    setColorSpace("rgb");
+    setChangedHexes(new Set());
+    previousColorSpace.current = "rgb";
+    previousUnlockedHexes.current = new Set();
   }, []);
 
   return {
@@ -149,5 +190,8 @@ export function usePalette({
     toggleLock,
     bumpMinCount,
     loadShared,
+    colorSpace,
+    setColorSpace,
+    changedHexes,
   };
 }

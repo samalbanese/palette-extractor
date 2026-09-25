@@ -23,6 +23,7 @@ export function Swatch({
   onSelect,
   showWeight,
   canLock,
+  changed,
 }: {
   color: RGB;
   index: number;
@@ -37,6 +38,7 @@ export function Swatch({
   onSelect: () => void;
   showWeight: boolean;
   canLock: boolean;
+  changed?: boolean;
 }) {
   const hex = rgbToHex(color);
   const value =
@@ -47,7 +49,7 @@ export function Swatch({
         : formatHsl(rgbToHsl(color));
   return (
     <article
-      className={`swatch ${selected ? "selected" : ""}`}
+      className={`swatch ${selected ? "selected" : ""} ${changed ? "changed" : ""}`}
       style={
         {
           "--swatch": hex,
