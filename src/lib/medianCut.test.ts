@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 import {
   medianCut,
   medianCutTrace,
@@ -10,6 +7,7 @@ import {
   type Pixel,
 } from "./medianCut";
 import { srgbToOklab } from "./oklab";
+import recorded from "./__fixtures__/median-cut-rgb.json";
 
 /** Build a cluster of n pixels tightly scattered around a center color. */
 function cluster(
@@ -223,13 +221,7 @@ const fixtureCases: Record<string, Pixel[]> = {
   random5000: randomPixels(20260925, 5000),
 };
 
-const fixturePath = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "__fixtures__/median-cut-rgb.json",
-);
-const fixture: Record<string, Record<string, unknown>> = JSON.parse(
-  readFileSync(fixturePath, "utf-8"),
-);
+const fixture: Record<string, Record<string, unknown>> = recorded;
 
 describe("rgb mode stays identical to the pre-oklab implementation", () => {
   it("matches an explicit rgb colorSpace option", () => {
