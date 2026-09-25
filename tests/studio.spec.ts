@@ -215,6 +215,126 @@ test("changing samples quickly keeps the final selection and transparent uploads
   await expect(page.locator(".image-caption")).toContainText("Coastal color");
 });
 
+test("switching to Perceptual re-extracts, announces what changed, and highlights changed swatches", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("radio", { name: "Perceptual", exact: true }).check();
+  await ready(page);
+  const status = (
+    await page.locator('span.sr-only[aria-live="polite"]').innerText()
+  ).trim();
+  expect(status).toMatch(
+    /^(Perceptual changed \d+ of \d+ colors\.|Same colors in both color spaces\.)$/,
+  );
+  const changed = status.match(/^Perceptual changed (\d+) of/);
+  await expect(page.locator(".swatch.changed")).toHaveCount(
+    changed ? Number(changed[1]) : 0,
+  );
+
+  await page.getByRole("radio", { name: "RGB", exact: true }).check();
+  await ready(page);
+  const statusBack = (
+    await page.locator('span.sr-only[aria-live="polite"]').innerText()
+  ).trim();
+  expect(statusBack).toMatch(
+    /^(RGB changed \d+ of \d+ colors\.|Same colors in both color spaces\.)$/,
+  );
+});
+
+test("pinned colors survive switching color space in both directions", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.locator(".lock-button").first().click();
+  await ready(page);
+  const lockedLabel = await page
+    .locator('.lock-button[aria-pressed="true"]')
+    .getAttribute("aria-label");
+
+  await page.getByRole("radio", { name: "Perceptual", exact: true }).check();
+  await ready(page);
+  await expect(page.locator('.lock-button[aria-pressed="true"]')).toHaveCount(
+    1,
+  );
+  expect(
+    await page
+      .locator('.lock-button[aria-pressed="true"]')
+      .getAttribute("aria-label"),
+  ).toBe(lockedLabel);
+
+  await page.getByRole("radio", { name: "RGB", exact: true }).check();
+  await ready(page);
+  await expect(page.locator('.lock-button[aria-pressed="true"]')).toHaveCount(
+    1,
+  );
+  expect(
+    await page
+      .locator('.lock-button[aria-pressed="true"]')
+      .getAttribute("aria-label"),
+  ).toBe(lockedLabel);
+});
+
+test("the color space switch is keyboard operable and updates the how-it-works cube label", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("tab", { name: "How it works" }).click();
+  await expect(
+    page.getByText("RGB / COLOR SPACE", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("radio", { name: "RGB", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.getByRole("radio", { name: "Perceptual", exact: true }),
+  ).toBeChecked();
+  await ready(page);
+  await expect(
+    page.getByText("OKLAB / COLOR SPACE", { exact: true }),
+  ).toBeVisible();
+});
+
+for (const width of [390, 360]) {
+  test(`the color space switch fits without horizontal scroll at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await ready(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.getByRole("radio", { name: "Perceptual", exact: true }).check();
+    await ready(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
+
+test("perceptual mode passes an accessibility scan once animations settle", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("radio", { name: "Perceptual", exact: true }).check();
+  await ready(page);
+  await settled(page);
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
 for (const width of [390, 768, 1440]) {
   test(`responsive layout and accessibility at ${width}px`, async ({
     page,
