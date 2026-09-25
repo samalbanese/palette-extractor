@@ -1,5 +1,5 @@
-import type { RGB } from "./color";
-import { oklabCoords } from "./oklab";
+import type { RGB } from "./types.js";
+import { oklabCoords } from "./oklab.js";
 
 export type Pixel = [number, number, number];
 export type ColorSpace = "rgb" | "oklab";
@@ -145,10 +145,10 @@ function snapshot(boxes: Entry[][]): SplitStep {
 
 /**
  * Split a box along one channel. Cutting exactly at the pixel median can
- * land inside a dominant color cluster and produce muddy mixed boxes, so —
- * like the original MMCQ — the cut point is pushed from the median toward
- * the middle of the wider value range, which tends to fall in the empty
- * gap between color clusters.
+ * land inside a dominant color cluster and produce muddy mixed boxes: like
+ * the original MMCQ, the cut point is pushed from the median toward the
+ * middle of the wider value range, which tends to fall in the empty gap
+ * between color clusters.
  */
 function splitBox(box: Entry[], channel: 0 | 1 | 2): [Entry[], Entry[]] {
   const sorted = [...box].sort((a, b) => a.coords[channel] - b.coords[channel]);
@@ -233,9 +233,4 @@ function representativeColor(box: Entry[]): RGB {
 
   const [r, g, b] = box[closestIndex].pixel;
   return { r, g, b };
-}
-
-/** Squared Euclidean distance in RGB space. */
-export function colorDistanceSq(a: RGB, b: RGB): number {
-  return (a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2;
 }

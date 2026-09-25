@@ -51,6 +51,11 @@ export function formatRgb({ r, g, b }: RGB): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+/** Squared Euclidean distance in RGB space. */
+export function colorDistanceSq(a: RGB, b: RGB): number {
+  return (a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2;
+}
+
 export function formatHsl(hsl: HSL): string {
   return `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`;
 }

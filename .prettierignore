@@ -1,3 +1,4 @@
 .claude/
 package-lock.json
 public/
+packages/*/dist

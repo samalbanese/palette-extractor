@@ -1,11 +1,10 @@
 import {
-  colorDistanceSq,
   medianCutTrace,
+  oklabCoords,
   type ColorSpace,
   type Pixel,
-} from "./medianCut";
-import { oklabCoords } from "./oklab";
-import type { RGB } from "./color";
+} from "@samalbanese/median-cut";
+import { colorDistanceSq, type RGB } from "./color";
 
 const TRANSPARENT =
   "That image is fully transparent. Choose an image with visible pixels.";

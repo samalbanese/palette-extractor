@@ -1,5 +1,5 @@
-import type { RGB } from "./color";
-import type { Pixel } from "./medianCut";
+import type { RGB } from "./types.js";
+import type { Pixel } from "./medianCut.js";
 
 export interface Oklab {
   L: number;

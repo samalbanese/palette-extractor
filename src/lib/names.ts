@@ -1,5 +1,4 @@
-import type { RGB } from "./color";
-import { colorDistanceSq } from "./medianCut";
+import { colorDistanceSq, type RGB } from "./color";
 
 export interface NamedColor {
   name: string;

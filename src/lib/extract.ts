@@ -1,5 +1,10 @@
 import type { RGB } from "./color";
-import type { ColorSpace, Pixel, SplitStep, WeightedColor } from "./medianCut";
+import type {
+  ColorSpace,
+  Pixel,
+  SplitStep,
+  WeightedColor,
+} from "@samalbanese/median-cut";
 import type { WorkerRequest } from "./quantize.worker";
 const MAX_DIMENSION = 320;
 const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG.";

@@ -9,8 +9,7 @@ import {
 import { type RGB, type SortMode, rgbToHex, sortPalette } from "../lib/color";
 import { extractPaletteDetailed, type ExtractionDetail } from "../lib/extract";
 import { updatePaletteFavicon } from "../lib/favicon";
-import type { ColorSpace } from "../lib/medianCut";
-import { oklabDistance } from "../lib/oklab";
+import { oklabDistance, type ColorSpace } from "@samalbanese/median-cut";
 import type { Source } from "./useImageSource";
 
 const HIGHLIGHT_DURATION_MS = 1500;

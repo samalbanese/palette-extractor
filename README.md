@@ -39,7 +39,7 @@ flowchart LR
 
 - **Quantize off the main thread.** Each extraction runs in its own Web Worker, so the interface stays responsive on large photos. The downscaled canvas's raw pixel buffer is transferred to the worker rather than copied, and the worker filters and collects pixels itself, so the main thread only draws and hands off. When a newer image or setting supersedes a run, an `AbortController` terminates its worker, and a request counter discards stale URL loads. A failed upload leaves the last good palette in place.
 - **Sample small, on purpose.** The image is drawn to a canvas with a longest edge of 320 px. That size came from benchmarking: 512 px took about four times as long with no visible gain, while 160 px let downscaling blur fine details into colors that were not in the photo.
-- **Median cut, written from scratch.** There is no quantization library. Early splits go to the most populous box, which finds the dominant colors. The final quarter of splits weighs population by box volume in RGB space, which rescues small but distinct accents that population alone would ignore.
+- **Median cut, written from scratch.** There is no quantization library. Early splits go to the most populous box, which finds the dominant colors. The final quarter of splits weighs population by box volume in RGB space, which rescues small but distinct accents that population alone would ignore. The quantizer lives in [`packages/median-cut`](packages/median-cut), a standalone, zero-dependency workspace package this app depends on like any other.
 - **Cut between clusters, not through them.** Instead of splitting exactly at the median, the cut point moves toward the middle of the wider side of the range, which tends to land in the gap between two color clusters.
 - **Only real colors.** A box's average can fall between two clusters and invent a color that appears nowhere in the image. Each swatch is instead the sampled pixel nearest its box's average, and a regression test holds that line.
 - **Pinning re-extracts around your picks.** Pinned colors stay put, and pixels close to them are excluded before the remaining swatches are found, so the new picks are genuinely different. Perceptual mode excludes by OKLab distance instead of RGB distance, so it keeps out perceptually similar pixels even when their raw RGB values differ.
@@ -67,8 +67,11 @@ src/
   App.tsx            Page layout; composes the hooks below
   hooks/             Image loading, palette state, copy feedback, shared links
   components/        Swatches, contrast, identity preview, exports, RGB cube
-  lib/               Framework-free logic: median cut, worker entry, color
-                     math, contrast, exporters, color names, share encoding
+  lib/               Framework-free logic: worker entry, color math,
+                     contrast, exporters, color names, share encoding
+packages/
+  median-cut/        The quantizer, published standalone as
+                     @samalbanese/median-cut (see below)
 tests/
   studio.spec.ts     End-to-end browser tests
 ```

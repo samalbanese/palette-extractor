@@ -3,11 +3,18 @@ import {
   medianCut,
   medianCutTrace,
   medianCutWeighted,
-  colorDistanceSq,
   type Pixel,
-} from "./medianCut";
-import { srgbToOklab } from "./oklab";
+} from "./medianCut.js";
+import { srgbToOklab } from "./oklab.js";
 import recorded from "./__fixtures__/median-cut-rgb.json";
+
+/** Squared Euclidean distance in RGB space, for test assertions only. */
+function distSq(
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+): number {
+  return (a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2;
+}
 
 /** Build a cluster of n pixels tightly scattered around a center color. */
 function cluster(
@@ -27,7 +34,7 @@ function cluster(
 const near = (
   a: { r: number; g: number; b: number },
   c: [number, number, number],
-) => colorDistanceSq(a, { r: c[0], g: c[1], b: c[2] }) < 20 ** 2;
+) => distSq(a, { r: c[0], g: c[1], b: c[2] }) < 20 ** 2;
 
 describe("medianCut", () => {
   it("returns a source color instead of an off-image average for one mixed box", () => {
@@ -273,10 +280,7 @@ describe("oklab mode", () => {
     };
     const rgbDistance = (p: Pixel, q: Pixel) =>
       Math.sqrt(
-        colorDistanceSq(
-          { r: p[0], g: p[1], b: p[2] },
-          { r: q[0], g: q[1], b: q[2] },
-        ),
+        distSq({ r: p[0], g: p[1], b: p[2] }, { r: q[0], g: q[1], b: q[2] }),
       );
     // The premise: RGB and OKLab disagree about which pair is closer.
     expect(rgbDistance(medium, bright)).toBeLessThan(

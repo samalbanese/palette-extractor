@@ -38,6 +38,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Package tarball contents
+        run: npm pack --dry-run -w @samalbanese/median-cut
+
+      - name: Package Node ESM smoke test
+        run: |
+          node --input-type=module -e "import { medianCut } from '@samalbanese/median-cut'; const c = medianCut([[255,0,0],[250,5,5],[0,0,255],[5,5,250]], 2, { colorSpace: 'oklab' }); if (c.length !== 2) throw new Error('bad result'); console.log(c)"
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 

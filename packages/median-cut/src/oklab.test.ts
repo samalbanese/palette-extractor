@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { srgbToOklab, oklabCoords, oklabDistance } from "./oklab";
-import type { Pixel } from "./medianCut";
+import { srgbToOklab, oklabCoords, oklabDistance } from "./oklab.js";
+import type { Pixel } from "./medianCut.js";
 
 function closeTo(value: number, expected: number, epsilon = 1e-3) {
   expect(Math.abs(value - expected)).toBeLessThan(epsilon);

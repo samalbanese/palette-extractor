@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { rgbToHex } from "../lib/color";
-import type {
-  ColorSpace,
-  Pixel,
-  SplitStep,
-  WeightedColor,
-} from "../lib/medianCut";
-import { oklabCoords } from "../lib/oklab";
+import {
+  oklabCoords,
+  type ColorSpace,
+  type Pixel,
+  type SplitStep,
+  type WeightedColor,
+} from "@samalbanese/median-cut";
 import { Icon } from "./Icon";
 
 interface PixelSpaceProps {

@@ -1,0 +1,42 @@
+{
+  "name": "@samalbanese/median-cut",
+  "version": "0.1.0",
+  "description": "A from-scratch median-cut color quantizer with an optional OKLab perceptual mode",
+  "keywords": [
+    "color",
+    "palette",
+    "median-cut",
+    "quantization",
+    "oklab",
+    "image"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samalbanese/palette-extractor.git",
+    "directory": "packages/median-cut"
+  },
+  "homepage": "https://palette-extractor.samalbanese.workers.dev/",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
