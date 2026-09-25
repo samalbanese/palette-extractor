@@ -2256,8 +2256,8 @@ select {
   .value-switch button {
     font-size: 12px;
   }
-  /* The tab labels no longer fit on one line at 12px; let them wrap
-     instead of forcing the row wider than the viewport. */
+  /* At 12px the tab labels can exceed one line on narrow phones; let them
+     wrap instead of forcing the row wider than the viewport. */
   .workbench-nav > button {
     white-space: normal;
     text-align: center;

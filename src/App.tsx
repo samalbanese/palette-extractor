@@ -3,23 +3,6 @@ import sunset from "./assets/sample.svg";
 import { Swatch, type ValueKind } from "./components/Swatch";
 import { ThemePreview } from "./components/ThemePreview";
 import { Icon } from "./components/Icon";
-
-// The default tab on load is "In context" (ThemePreview, imported above).
-// The other three tool panels are heavier and off screen until picked, so
-// their code loads in its own chunk instead of the initial bundle.
-const ContrastPanel = lazy(() =>
-  import("./components/ContrastPanel").then((m) => ({
-    default: m.ContrastPanel,
-  })),
-);
-const PixelSpace = lazy(() =>
-  import("./components/PixelSpace").then((m) => ({ default: m.PixelSpace })),
-);
-const ExportPanel = lazy(() =>
-  import("./components/ExportPanel").then((m) => ({
-    default: m.ExportPanel,
-  })),
-);
 import {
   type SortMode,
   rgbToHex,
@@ -35,6 +18,22 @@ import { useImageSource, type Source } from "./hooks/useImageSource";
 import { usePalette } from "./hooks/usePalette";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useSharedPalette } from "./hooks/useSharedPalette";
+
+// "In context" is the default tab. The other tool panels stay off screen
+// until picked, so their code loads in separate chunks.
+const ContrastPanel = lazy(() =>
+  import("./components/ContrastPanel").then((m) => ({
+    default: m.ContrastPanel,
+  })),
+);
+const PixelSpace = lazy(() =>
+  import("./components/PixelSpace").then((m) => ({ default: m.PixelSpace })),
+);
+const ExportPanel = lazy(() =>
+  import("./components/ExportPanel").then((m) => ({
+    default: m.ExportPanel,
+  })),
+);
 
 const samples: Source[] = [
   {
@@ -210,8 +209,6 @@ export default function App() {
                 <img
                   src={(loaded ?? source)!.src}
                   alt={(loaded ?? source)!.name}
-                  width={1400}
-                  height={788}
                   fetchPriority="high"
                   decoding="async"
                   crossOrigin={

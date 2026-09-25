@@ -83,11 +83,11 @@ export async function extractPalette(
 }
 
 /**
- * Builds the message to hand off to the quantizer worker. The draw and pixel
- * read still happen here on the main thread (identical to the original
- * single-threaded path), but only the raw pixel buffer is transferred to the
- * worker — a zero-copy handoff — instead of building a Pixel[] array and
- * structured-cloning it, which is what made this step expensive before.
+ * Draws the downscaled image and packages its raw RGBA buffer for the
+ * quantizer worker. The buffer is transferred rather than copied, and the
+ * worker builds the pixel list itself, so the main thread never allocates
+ * one array per pixel. Drawing stays on a main-thread canvas because
+ * OffscreenCanvas in a worker can resample to slightly different pixels.
  */
 function buildWorkerRequest(
   img: HTMLImageElement,
