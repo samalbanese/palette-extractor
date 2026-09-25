@@ -414,24 +414,26 @@ export default function App() {
                 disabled={!source || busy}
               >
                 <legend>Color space</legend>
-                <label className={colorSpace === "rgb" ? "active" : ""}>
-                  <input
-                    type="radio"
-                    name="color-space"
-                    checked={colorSpace === "rgb"}
-                    onChange={() => palette.setColorSpace("rgb")}
-                  />
-                  RGB
-                </label>
-                <label className={colorSpace === "oklab" ? "active" : ""}>
-                  <input
-                    type="radio"
-                    name="color-space"
-                    checked={colorSpace === "oklab"}
-                    onChange={() => palette.setColorSpace("oklab")}
-                  />
-                  Perceptual
-                </label>
+                <span className="colorspace-options">
+                  <label className={colorSpace === "rgb" ? "active" : ""}>
+                    <input
+                      type="radio"
+                      name="color-space"
+                      checked={colorSpace === "rgb"}
+                      onChange={() => palette.setColorSpace("rgb")}
+                    />
+                    RGB
+                  </label>
+                  <label className={colorSpace === "oklab" ? "active" : ""}>
+                    <input
+                      type="radio"
+                      name="color-space"
+                      checked={colorSpace === "oklab"}
+                      onChange={() => palette.setColorSpace("oklab")}
+                    />
+                    Perceptual
+                  </label>
+                </span>
               </fieldset>
               {locked.length > 0 && source && (
                 <button
@@ -583,7 +585,7 @@ export default function App() {
                   pixels={palette.detail.pixels}
                   steps={palette.detail.steps}
                   palette={sorted}
-                  colorSpace={colorSpace}
+                  colorSpace={palette.detailColorSpace}
                 />
               )}
               {activeTab === "export" && (

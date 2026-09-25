@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { srgbToOklab, oklabCoords } from "./oklab";
+import { srgbToOklab, oklabCoords, oklabDistance } from "./oklab";
 import type { Pixel } from "./medianCut";
 
 function closeTo(value: number, expected: number, epsilon = 1e-3) {
@@ -73,5 +73,33 @@ describe("oklabCoords", () => {
         }
       }
     }
+  });
+});
+
+describe("oklabDistance", () => {
+  const white = { r: 255, g: 255, b: 255 };
+  const black = { r: 0, g: 0, b: 0 };
+
+  it("is zero for identical colors and symmetric", () => {
+    const sky = { r: 95, g: 146, b: 173 };
+    expect(oklabDistance(sky, sky)).toBe(0);
+    expect(oklabDistance(sky, white)).toBe(oklabDistance(white, sky));
+  });
+
+  it("spans 1 from black to white", () => {
+    closeTo(oklabDistance(black, white), 1);
+  });
+
+  it("keeps a one-step hex nudge well under a visible difference", () => {
+    // #5f92ad and #6193ae: the same sky blue picked from neighboring pixels.
+    const nudge = oklabDistance(
+      { r: 95, g: 146, b: 173 },
+      { r: 97, g: 147, b: 174 },
+    );
+    expect(nudge).toBeLessThan(0.01);
+    // A sandy clay against a dark rust reads as a clearly different color.
+    expect(
+      oklabDistance({ r: 141, g: 110, b: 85 }, { r: 111, g: 66, b: 34 }),
+    ).toBeGreaterThan(0.05);
   });
 });

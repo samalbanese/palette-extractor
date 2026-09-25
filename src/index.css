@@ -813,22 +813,30 @@ code {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* A floated legend joins the flex row like the other toolbar labels
+   instead of being drawn on top of the fieldset. */
 .colorspace-switch legend {
+  float: left;
   padding: 0;
 }
+.colorspace-options {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: #222527;
+  border: 1px solid #393c3e;
+  border-radius: 5px;
+}
 .colorspace-switch label {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 5px;
   font: 10px var(--font-mono);
-  min-height: 27px;
-  padding: 0 10px;
+  min-height: 26px;
+  padding: 0 9px;
   border-radius: 3px;
   color: #a4a7a8;
   cursor: pointer;
-}
-.colorspace-switch label + label {
-  margin-left: 2px;
 }
 .colorspace-switch label.active {
   background: #3b3e40;

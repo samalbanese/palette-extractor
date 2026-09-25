@@ -10,9 +10,14 @@ import { type RGB, type SortMode, rgbToHex, sortPalette } from "../lib/color";
 import { extractPaletteDetailed, type ExtractionDetail } from "../lib/extract";
 import { updatePaletteFavicon } from "../lib/favicon";
 import type { ColorSpace } from "../lib/medianCut";
+import { oklabDistance } from "../lib/oklab";
 import type { Source } from "./useImageSource";
 
 const HIGHLIGHT_DURATION_MS = 1500;
+// Switching spaces often nudges a swatch to a neighboring pixel of the same
+// color. Below this OKLab distance a swatch reads as unchanged, so only
+// visible differences are counted and highlighted.
+const SAME_COLOR_DISTANCE = 0.03;
 
 interface UsePaletteOptions {
   source: Source | null;
@@ -47,9 +52,13 @@ export function usePalette({
   const [sort, setSort] = useState<SortMode>("original");
   const [extracting, setExtracting] = useState(!initialColors);
   const [colorSpace, setColorSpace] = useState<ColorSpace>("rgb");
+  // The space that produced the palette on screen. It trails `colorSpace`
+  // while a switch is re-extracting, so views of the current result (the
+  // pixel cube) never pair old split boxes with the new space.
+  const [detailColorSpace, setDetailColorSpace] = useState<ColorSpace>("rgb");
   const [changedHexes, setChangedHexes] = useState<Set<string>>(new Set());
   const previousColorSpace = useRef<ColorSpace>("rgb");
-  const previousUnlockedHexes = useRef<Set<string>>(new Set());
+  const previousUnlocked = useRef<RGB[]>([]);
   const highlightTimeout = useRef<number>();
 
   useEffect(() => {
@@ -58,7 +67,7 @@ export function usePalette({
     setExtracting(true);
     const remaining = count - locked.length;
     const isSwitch = previousColorSpace.current !== colorSpace;
-    const priorUnlockedHexes = previousUnlockedHexes.current;
+    const priorUnlocked = previousUnlocked.current;
     const run = async () => {
       // Validate each new source even when every output slot is pinned.
       const next = await extractPaletteDetailed(
@@ -77,7 +86,6 @@ export function usePalette({
               )
               .slice(0, remaining)
           : [];
-      const unlockedHexes = new Set(unlocked.map((e) => rgbToHex(e.color)));
       // Deprioritized: lets the browser paint whatever's already on screen
       // (the source image, in particular) before committing this update.
       startTransition(() => {
@@ -89,12 +97,21 @@ export function usePalette({
           ],
           ...(remaining <= 0 ? { pixels: [], steps: [] } : {}),
         });
+        setDetailColorSpace(colorSpace);
         setLoaded(source);
         setSelectedHex(null);
         setError(null);
         if (isSwitch) {
           const changed = new Set(
-            [...unlockedHexes].filter((hex) => !priorUnlockedHexes.has(hex)),
+            unlocked
+              .filter(
+                ({ color }) =>
+                  !priorUnlocked.some(
+                    (prior) =>
+                      oklabDistance(color, prior) < SAME_COLOR_DISTANCE,
+                  ),
+              )
+              .map(({ color }) => rgbToHex(color)),
           );
           setChangedHexes(changed);
           window.clearTimeout(highlightTimeout.current);
@@ -118,7 +135,7 @@ export function usePalette({
         setExtracting(false);
       });
       previousColorSpace.current = colorSpace;
-      previousUnlockedHexes.current = unlockedHexes;
+      previousUnlocked.current = unlocked.map((e) => e.color);
     };
     void run().catch((err: Error) => {
       if (!controller.signal.aborted) {
@@ -169,9 +186,10 @@ export function usePalette({
     setCount(colors.length);
     setExtracting(false);
     setColorSpace("rgb");
+    setDetailColorSpace("rgb");
     setChangedHexes(new Set());
     previousColorSpace.current = "rgb";
-    previousUnlockedHexes.current = new Set();
+    previousUnlocked.current = [];
   }, []);
 
   return {
@@ -192,6 +210,7 @@ export function usePalette({
     loadShared,
     colorSpace,
     setColorSpace,
+    detailColorSpace,
     changedHexes,
   };
 }

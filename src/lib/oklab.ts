@@ -37,6 +37,16 @@ export function srgbToOklab({ r, g, b }: RGB): Oklab {
 }
 
 /**
+ * Straight-line distance between two colors in OKLab. Around 0.02 is the
+ * smallest difference most people notice; black to white is 1.
+ */
+export function oklabDistance(x: RGB, y: RGB): number {
+  const a = srgbToOklab(x);
+  const b = srgbToOklab(y);
+  return Math.hypot(a.L - b.L, a.a - b.a, a.b - b.b);
+}
+
+/**
  * OKLab, rescaled into the same 0-255 integer domain the RGB quantizer
  * already works in, so the median cut split logic runs unchanged whichever
  * space it is given. One uniform scale factor on all three axes preserves

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { rgbToHex, type RGB } from "../lib/color";
+import { rgbToHex } from "../lib/color";
 import type {
   ColorSpace,
   Pixel,
@@ -18,10 +18,31 @@ interface PixelSpaceProps {
 
 const MORPH_DURATION_MS = 800;
 
-function coordsFor(rgb: RGB, colorSpace: ColorSpace): Pixel {
-  return colorSpace === "oklab"
-    ? oklabCoords([rgb.r, rgb.g, rgb.b])
-    : [rgb.r, rgb.g, rgb.b];
+// Legend for the cube's x, y, and z axes. OKLab's are lightness, then the
+// green-red and blue-yellow opponent axes.
+const AXES: Record<ColorSpace, Array<[string, string]>> = {
+  rgb: [
+    ["R", "#e8a69e"],
+    ["G", "#afccb6"],
+    ["B", "#9fbdde"],
+  ],
+  oklab: [
+    ["L", "#d9d6cf"],
+    ["a", "#e8a69e"],
+    ["b", "#9fbdde"],
+  ],
+};
+
+function coordsFor(pixel: Pixel, colorSpace: ColorSpace): Pixel {
+  return colorSpace === "oklab" ? oklabCoords(pixel) : pixel;
+}
+
+function lerp(from: Pixel, to: Pixel, t: number): Pixel {
+  return [
+    from[0] + (to[0] - from[0]) * t,
+    from[1] + (to[1] - from[1]) * t,
+    from[2] + (to[2] - from[2]) * t,
+  ];
 }
 
 /** Cubic ease-in-out, used to morph dots between color spaces. */
@@ -94,27 +115,22 @@ export function PixelSpace({
     setActiveStep(stepIndex);
     const startedAt = performance.now();
 
-    // Morph dots from their previous color space to the current one. A
-    // switch triggers a short animated transition; anything else (first
-    // mount, replay, a new extraction in the same space) snaps immediately.
+    // When a result arrives from the other color space, dots glide from
+    // their old positions to the new ones. First mount, replays, and new
+    // results in the same space draw in place. Positions are converted once
+    // here, not on every frame.
     const fromSpace = previousColorSpace.current;
-    const isSwitch = fromSpace !== colorSpace;
     previousColorSpace.current = colorSpace;
+    const morphing = fromSpace !== colorSpace && !reducedMotion && !paused;
+    const targets = pixels.map((pixel) => coordsFor(pixel, colorSpace));
+    const origins = morphing
+      ? pixels.map((pixel) => coordsFor(pixel, fromSpace))
+      : targets;
     const morphStartedAt = performance.now();
-    const morphAt = (now: number) => {
-      if (!isSwitch || reducedMotion || paused) return 1;
-      return easeInOut(Math.min(1, (now - morphStartedAt) / MORPH_DURATION_MS));
-    };
-    const morphed = (rgb: RGB, now: number): Pixel => {
-      const from = coordsFor(rgb, fromSpace);
-      const to = coordsFor(rgb, colorSpace);
-      const t = morphAt(now);
-      return [
-        from[0] + (to[0] - from[0]) * t,
-        from[1] + (to[1] - from[1]) * t,
-        from[2] + (to[2] - from[2]) * t,
-      ];
-    };
+    const morphProgress = (now: number) =>
+      morphing
+        ? easeInOut(Math.min(1, (now - morphStartedAt) / MORPH_DURATION_MS))
+        : 1;
 
     const resize = () => {
       const bounds = canvas.getBoundingClientRect();
@@ -199,9 +215,11 @@ export function PixelSpace({
         "rgba(218, 226, 231, 0.15)",
       );
 
+      const t = morphProgress(now);
       ctx.globalAlpha = 0.9;
-      for (const pixel of pixels) {
-        const coords = morphed({ r: pixel[0], g: pixel[1], b: pixel[2] }, now);
+      for (let i = 0; i < pixels.length; i++) {
+        const pixel = pixels[i];
+        const coords = t === 1 ? targets[i] : lerp(origins[i], targets[i], t);
         const point = project(coords, angle, width, height);
         ctx.fillStyle = `rgb(${pixel[0]} ${pixel[1]} ${pixel[2]})`;
         ctx.fillRect(point.x - 1.3, point.y - 1.3, 2.6, 2.6);
@@ -233,7 +251,13 @@ export function PixelSpace({
         for (const { color, population } of finals) {
           // Dot size tracks how much of the image the color covers.
           const radius = 4.5 + Math.sqrt(total ? population / total : 0) * 7;
-          const point = project(morphed(color, now), angle, width, height);
+          const rgb: Pixel = [color.r, color.g, color.b];
+          const coords = lerp(
+            coordsFor(rgb, morphing ? fromSpace : colorSpace),
+            coordsFor(rgb, colorSpace),
+            t,
+          );
+          const point = project(coords, angle, width, height);
           ctx.beginPath();
           ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
           ctx.fillStyle = rgbToHex(color);
@@ -380,15 +404,12 @@ export function PixelSpace({
           />
           <div className="cube-bottomline">
             <div className="cube-legend">
-              <span style={{ color: "#e8a69e" }}>
-                <i />R
-              </span>
-              <span style={{ color: "#afccb6" }}>
-                <i />G
-              </span>
-              <span style={{ color: "#9fbdde" }}>
-                <i />B
-              </span>
+              {AXES[colorSpace].map(([label, color]) => (
+                <span key={label} style={{ color }}>
+                  <i />
+                  {label}
+                </span>
+              ))}
             </div>
             <div className="animation-controls">
               {!reducedMotion && (

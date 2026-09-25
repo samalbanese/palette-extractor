@@ -44,7 +44,7 @@ flowchart LR
 - **Only real colors.** A box's average can fall between two clusters and invent a color that appears nowhere in the image. Each swatch is instead the sampled pixel nearest its box's average, and a regression test holds that line.
 - **Pinning re-extracts around your picks.** Pinned colors stay put, and pixels close to them are excluded before the remaining swatches are found, so the new picks are genuinely different. Perceptual mode excludes by OKLab distance instead of RGB distance, so it keeps out perceptually similar pixels even when their raw RGB values differ.
 - **Visualize the real run.** The worker returns the actual split sequence along with a pixel sample, so the cube replays the run that produced your palette rather than a canned illustration. It respects reduced-motion preferences and pauses while off screen.
-- **Perceptual grouping without a color library.** Color space runs the same from-scratch median cut on OKLab coordinates rescaled into the 0-255 domain instead of raw RGB, so eyes-close, values-far colors can end up in one swatch instead of two. The representative color is still a real source pixel, and RGB mode is unchanged byte for byte, held in place by a fixture recorded before the OKLab path existed.
+- **Perceptual grouping without a color library.** Perceptual mode runs the same from-scratch median cut on OKLab coordinates, rescaled into the 0–255 domain the RGB path already uses. A medium and a bright green can sit only 40 apart in RGB while looking clearly different, and a yellow-green 50 away can look almost identical to the bright one. Asked for two swatches, RGB spends one on the near-duplicate; Perceptual spends it on the difference a viewer can see, and a unit test holds that example. Every swatch is still a real source pixel, and RGB mode is unchanged byte for byte, checked against output recorded before the OKLab path existed.
 
 Swatches are colors from the downscaled sample, and resizing can blend neighboring pixels. Quantization is an approximation, and a simple image may return fewer colors than requested.
 
@@ -75,7 +75,7 @@ tests/
 
 ## Quality checks
 
-Every push and pull request runs [CI](.github/workflows/ci.yml): a formatting check, type checking, 59 unit tests, a production build, and 18 end-to-end browser scenarios in Chromium.
+Every push and pull request runs [CI](.github/workflows/ci.yml): a formatting check, type checking, 62 unit tests, a production build, and 18 end-to-end browser scenarios in Chromium.
 
 Unit tests cover the quantizer, color math, contrast, exporters, color names, share links, and theme roles. Browser tests exercise uploads, drag and paste, URL loading, copy formats, downloads, sharing, pinning, keyboard tabs, reduced motion, and responsive layouts, with automated axe accessibility scans at phone, tablet, and desktop widths.
 
