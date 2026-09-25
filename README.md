@@ -71,7 +71,7 @@ src/
                      contrast, exporters, color names, share encoding
 packages/
   median-cut/        The quantizer, published standalone as
-                     @samalbanese/median-cut (see below)
+                     @samalbanese/median-cut, with its own README
 tests/
   studio.spec.ts     End-to-end browser tests
 ```
