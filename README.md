@@ -17,7 +17,8 @@
 - **Understand the balance.** A distribution strip and percentages show each quantized color group's share of the sampled image. Pinned palettes deliberately hide distribution, since their colors may come from different images.
 - **See it in context.** An editorial identity responds to the palette, with suggested surface, text, and accent roles. Reverse light and dark to explore another direction. Low-contrast palettes get an honest explanation instead of an unreadable preview.
 - **Check readability.** Compare actual WCAG 2 contrast ratios and copy a text/background pair as CSS. Large-text-only pairs are labeled separately.
-- **Watch the algorithm.** A live RGB cube plots up to 3,000 sampled pixels and animates median-cut partitions.
+- **Switch to perceptual grouping.** Toggle Color space between RGB and Perceptual to re-extract with OKLab, a color model closer to how eyes actually group hues. A status line reports how many swatches changed, and changed swatches get a brief highlight.
+- **Watch the algorithm.** A live RGB (or OKLab) cube plots up to 3,000 sampled pixels and animates median-cut partitions, morphing between spaces when you switch.
 - **Take it with you.** Preview, copy, or download CSS variables, Tailwind v4 theme tokens, SCSS, SVG, or JSON. Save a PNG palette card or share a compact color-only link, including one-color palettes.
 
 ## How it works
@@ -41,8 +42,9 @@ flowchart LR
 - **Median cut, written from scratch.** There is no quantization library. Early splits go to the most populous box, which finds the dominant colors. The final quarter of splits weighs population by box volume in RGB space, which rescues small but distinct accents that population alone would ignore.
 - **Cut between clusters, not through them.** Instead of splitting exactly at the median, the cut point moves toward the middle of the wider side of the range, which tends to land in the gap between two color clusters.
 - **Only real colors.** A box's average can fall between two clusters and invent a color that appears nowhere in the image. Each swatch is instead the sampled pixel nearest its box's average, and a regression test holds that line.
-- **Pinning re-extracts around your picks.** Pinned colors stay put, and pixels close to them in RGB space are excluded before the remaining swatches are found, so the new picks are genuinely different.
-- **Visualize the real run.** The worker returns the actual split sequence along with a pixel sample, so the RGB cube replays the run that produced your palette rather than a canned illustration. It respects reduced-motion preferences and pauses while off screen.
+- **Pinning re-extracts around your picks.** Pinned colors stay put, and pixels close to them are excluded before the remaining swatches are found, so the new picks are genuinely different. Perceptual mode excludes by OKLab distance instead of RGB distance, so it keeps out perceptually similar pixels even when their raw RGB values differ.
+- **Visualize the real run.** The worker returns the actual split sequence along with a pixel sample, so the cube replays the run that produced your palette rather than a canned illustration. It respects reduced-motion preferences and pauses while off screen.
+- **Perceptual grouping without a color library.** Color space runs the same from-scratch median cut on OKLab coordinates rescaled into the 0-255 domain instead of raw RGB, so eyes-close, values-far colors can end up in one swatch instead of two. The representative color is still a real source pixel, and RGB mode is unchanged byte for byte, held in place by a fixture recorded before the OKLab path existed.
 
 Swatches are colors from the downscaled sample, and resizing can blend neighboring pixels. Quantization is an approximation, and a simple image may return fewer colors than requested.
 
@@ -73,7 +75,7 @@ tests/
 
 ## Quality checks
 
-Every push and pull request runs [CI](.github/workflows/ci.yml): a formatting check, type checking, 48 unit tests, a production build, and 12 end-to-end browser scenarios in Chromium.
+Every push and pull request runs [CI](.github/workflows/ci.yml): a formatting check, type checking, 59 unit tests, a production build, and 18 end-to-end browser scenarios in Chromium.
 
 Unit tests cover the quantizer, color math, contrast, exporters, color names, share links, and theme roles. Browser tests exercise uploads, drag and paste, URL loading, copy formats, downloads, sharing, pinning, keyboard tabs, reduced motion, and responsive layouts, with automated axe accessibility scans at phone, tablet, and desktop widths.
 
