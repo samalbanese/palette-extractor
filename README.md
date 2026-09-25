@@ -48,14 +48,14 @@ Swatches are colors from the downscaled sample, and resizing can blend neighbori
 
 ## Performance
 
-| Measure                                 | Result                                                            |
-| --------------------------------------- | ----------------------------------------------------------------- |
-| 12 MP photo, upload to rendered palette | ~0.4 s median, ~0.8 s with 4× CPU throttling                      |
-| JavaScript, gzipped                     | 62 kB including React; the worker adds 2 kB                       |
-| CSS, gzipped                            | 7 kB                                                              |
-| Lighthouse, desktop                     | Performance 97 · Accessibility 100 · Best practices 100 · SEO 100 |
+| Measure                                 | Result                                                             |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| 12 MP photo, upload to rendered palette | ~0.4 s median, ~0.8 s with 4× CPU throttling                       |
+| JavaScript, gzipped                     | 62 kB including React; the worker adds 2 kB                        |
+| CSS, gzipped                            | 7 kB                                                               |
+| Lighthouse, desktop (live site)         | Performance 100 · Accessibility 100 · Best practices 100 · SEO 100 |
 
-Measured on the production build in Chromium on an AMD Ryzen 7 5800X3D.
+Extraction timings come from the production build in Chromium on an AMD Ryzen 7 5800X3D.
 
 ## Project structure
 
