@@ -226,7 +226,7 @@ describe("checkBundle", () => {
       }),
       files: { "assets/index-a.js": 1 * KB, "assets/dep-e.js": 1 * KB },
     });
-    const result = checkBundle(dir, budgets);
+    const result = checkBundle(dir, budgets, loose);
     expect(result.ok).toBe(true);
     expect(row(result, "first-load JS").files.sort()).toEqual([
       "assets/dep-e.js",
@@ -241,7 +241,7 @@ describe("checkBundle", () => {
       manifest: entryManifest(),
       files: { "assets/index-a.js": 1 * KB },
     });
-    const result = checkBundle(dir, budgets);
+    const result = checkBundle(dir, budgets, loose);
     expect(result.problems).toEqual([]);
     expect(result.ok).toBe(true);
   });
@@ -298,7 +298,7 @@ describe("checkBundle", () => {
       manifest: entryManifest(),
       files: { "assets/index-a.js": 1 * KB },
     });
-    expect(checkBundle(dir, budgets).problems).toEqual([]);
+    expect(checkBundle(dir, budgets, loose).problems).toEqual([]);
   });
 
   it("follows the imports of an entry referenced by a relative path", () => {
