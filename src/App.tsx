@@ -519,11 +519,11 @@ export default function App() {
               </button>
               <button
                 className="button secondary"
-                onClick={() => copy(exportPalette(colors, format), "export")}
+                onClick={() => copy(exportPalette(colors, format), "dock")}
                 disabled={busy}
               >
-                <Icon name={copied === "export" ? "check" : "copy"} size={16} />
-                {copied === "export" ? "Copied" : "Copy palette"}
+                <Icon name={copied === "dock" ? "check" : "copy"} size={16} />
+                {copied === "dock" ? "Copied" : "Copy palette"}
               </button>
             </div>
           </div>

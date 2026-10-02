@@ -148,6 +148,35 @@ test("each export format previews and downloads the same valid content", async (
   expect((await card).suggestedFilename()).toMatch(/^palette-.+\.png$/);
 });
 
+test("only the copy button that was clicked shows its confirmation", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("tab", { name: "Export palette" }).click();
+  const panelButton = page.locator(".export-panel").getByRole("button", {
+    name: /^(Copy code|Copied)$/,
+  });
+  const barButton = page.locator(".palette-dock").getByRole("button", {
+    name: /^(Copy palette|Copied)$/,
+  });
+
+  // The confirmation clears itself after a moment, so the other button is
+  // read once, while the clicked one still says "Copied", not retried.
+  const label = async (button: typeof panelButton) =>
+    (await button.textContent())?.trim();
+
+  await panelButton.click();
+  await expect(panelButton).toHaveText("Copied");
+  expect(await label(barButton)).toBe("Copy palette");
+
+  await barButton.click();
+  await expect(barButton).toHaveText("Copied");
+  expect(await label(panelButton)).toBe("Copy code");
+});
+
 test("algorithm and contrast tools work with keyboard tabs and reduced motion", async ({
   page,
 }) => {
