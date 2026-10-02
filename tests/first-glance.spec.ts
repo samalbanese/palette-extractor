@@ -558,6 +558,12 @@ test("link previews: every Open Graph and Twitter tag is present and the image i
   expect(meta["og:url"]).toBe(SITE);
   expect(meta["og:image"].startsWith(SITE)).toBe(true);
   expect(meta["twitter:image"]).toBe(meta["og:image"]);
+  // The old workers.dev hostname still serves the app, so search engines
+  // need to be told which address is the real one.
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    SITE,
+  );
 
   const response = await request.get(new URL(meta["og:image"]).pathname);
   expect(response.status()).toBe(200);
