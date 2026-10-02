@@ -11,7 +11,7 @@ const PHASES = [
   ["settle", 800],
   ["split", 1400],
   ["converge", 2000],
-  ["flight", 2300],
+  ["flight", 2250],
   ["release", 2700],
   ["done", 3000],
 ] as const;
@@ -58,12 +58,13 @@ describe("introState", () => {
     expect(introState(800, 3000).toCloud).toBeCloseTo(0.6, 10);
     expect(introState(1400, 3000).toCloud).toBe(1);
     expect(introState(2000, 3000).split).toBe(1);
-    expect(introState(2300, 3000).converge).toBe(1);
+    // The groups condense to 80% before their chips leave.
+    expect(introState(2250, 3000).converge).toBeCloseTo(0.8, 10);
     expect(introState(2700, 3000).flight).toBe(1);
   });
 
   // easeInOutCubic is 0.0625 a quarter of the way through and 0.9375 at three
-  // quarters; split and flight are linear.
+  // quarters; split is linear and flight eases in (t cubed).
   it.each([3000, 1200])("eases each phase as specified at %i ms", (length) => {
     const at = (ms: number) => introState((ms * length) / 3000, length);
     expect(at(200).toCloud).toBeCloseTo(0.6 * 0.0625, 6);
@@ -72,10 +73,10 @@ describe("introState", () => {
     expect(at(1250).toCloud).toBeCloseTo(0.6 + 0.4 * 0.9375, 6);
     expect(at(1550).split).toBeCloseTo(0.25, 6);
     expect(at(1850).split).toBeCloseTo(0.75, 6);
-    expect(at(2075).converge).toBeCloseTo(0.0625, 6);
-    expect(at(2225).converge).toBeCloseTo(0.9375, 6);
-    expect(at(2400).flight).toBeCloseTo(0.25, 6);
-    expect(at(2600).flight).toBeCloseTo(0.75, 6);
+    expect(at(2062.5).converge).toBeCloseTo(0.8 * 0.0625, 6);
+    expect(at(2187.5).converge).toBeCloseTo(0.8 * 0.9375, 6);
+    expect(at(2362.5).flight).toBeCloseTo(1 / 64, 6);
+    expect(at(2587.5).flight).toBeCloseTo(27 / 64, 6);
     expect(at(2775).release).toBeCloseTo(0.0625, 6);
     expect(at(2925).release).toBeCloseTo(0.9375, 6);
   });
