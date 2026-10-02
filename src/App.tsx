@@ -23,6 +23,39 @@ import type { StageResult } from "./components/Stage";
 const loadStage = () => import("./components/Stage");
 const Stage = lazy(loadStage);
 
+// Resolves once the browser reports the photo as the page's largest paint, so
+// the stage download does not compete with it. Browsers that do not report
+// largest paints skip the wait. The photo may also never get an entry (another
+// element is larger, or early input stops the reporting), so a short timeout
+// bounds the wait.
+const afterLargestPaint = (image: HTMLImageElement) =>
+  new Promise<void>((resolve) => {
+    if (
+      typeof PerformanceObserver === "undefined" ||
+      !PerformanceObserver.supportedEntryTypes?.includes(
+        "largest-contentful-paint",
+      )
+    ) {
+      resolve();
+      return;
+    }
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries())
+        if ((entry as LargestContentfulPaint).element === image) finish();
+    });
+    const timer = setTimeout(() => finish(), 600);
+    function finish() {
+      observer.disconnect();
+      clearTimeout(timer);
+      resolve();
+    }
+    try {
+      observer.observe({ type: "largest-contentful-paint", buffered: true });
+    } catch {
+      finish();
+    }
+  });
+
 // "In context" is the default tab. The other tool panels stay off screen
 // until picked, so their code loads in separate chunks.
 const ContrastPanel = lazy(() =>
@@ -131,6 +164,7 @@ export default function App() {
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       );
+      await afterLargestPaint(image);
       if (cancelled) return;
       await loadStage();
       await new Promise<void>((resolve) => {

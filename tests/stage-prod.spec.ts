@@ -80,3 +80,46 @@ for (let run = 1; run <= 3; run++)
       if (swatch.visible) expect(swatch.landed).toBeGreaterThan(0);
     }
   });
+
+for (const width of [390, 1440])
+  test(`the stage download starts after the photo's largest paint at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.goto("/");
+    await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
+    const timing = await page.evaluate(
+      () =>
+        new Promise<{ photo: number | null; stage: number | null }>(
+          (resolve) => {
+            const image = document.querySelector(".source-frame > img");
+            // No entry at all would otherwise hang until the test timeout.
+            const none = setTimeout(
+              () => resolve({ photo: null, stage: null }),
+              5000,
+            );
+            new PerformanceObserver((list, observer) => {
+              observer.disconnect();
+              clearTimeout(none);
+              const paint = list
+                .getEntries()
+                .find(
+                  (entry) =>
+                    (entry as LargestContentfulPaint).element === image,
+                );
+              const stage = performance
+                .getEntriesByType("resource")
+                .find((entry) => /\/Stage-[^/]*\.js$/.test(entry.name));
+              resolve({
+                photo: paint ? paint.startTime : null,
+                stage: stage ? stage.startTime : null,
+              });
+            }).observe({ type: "largest-contentful-paint", buffered: true });
+          },
+        ),
+    );
+    console.log(`STAGE_AFTER_LCP width=${width} ${JSON.stringify(timing)}`);
+    expect(timing.photo).not.toBeNull();
+    expect(timing.stage).not.toBeNull();
+    expect(timing.stage!).toBeGreaterThanOrEqual(timing.photo!);
+  });
