@@ -28,7 +28,7 @@ function reference(
   width: number,
   height: number,
 ) {
-  const { cube, order, centroids } = prepare(samples, "oklab");
+  const { cube, fit, order, centroids } = prepare(samples, "oklab");
   const cover = coverTransform(samples.width, samples.height, width, height);
   ctx.clearRect(0, 0, width, height);
   const pull = state.converge * (1 - state.release);
@@ -50,6 +50,7 @@ function reference(
       state.angle,
       width,
       height,
+      fit,
     );
     const frame = imagePoint(
       samples.positions[i * 2],

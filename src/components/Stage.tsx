@@ -126,7 +126,7 @@ export default function Stage({
         portal.current!,
         origins.map((p) => {
           if (!p || done || reduced) return null;
-          const [x, y] = project(p, angle, width, height);
+          const [x, y] = project(p, angle, width, height, data.fit);
           return { x: rect.left + x, y: rect.top + y };
         }),
         result.swatches,
@@ -158,7 +158,15 @@ export default function Stage({
         : "1";
       inset.current!.style.opacity = cloud ? String(state.release) : "0";
       if (cloud) renderer!.draw(state);
-      drawOverlay(wire.current!, result.steps, state, width, height, dpr);
+      drawOverlay(
+        wire.current!,
+        result.steps,
+        state,
+        data.fit,
+        width,
+        height,
+        dpr,
+      );
       parent.dataset.stageSpace = result.colorSpace;
       frames++;
       if (performance.now() - lastHook >= 250 || frames === 1) {

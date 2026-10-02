@@ -97,7 +97,10 @@ test("switching color space redraws the cloud in the new space", async ({
 
 // Two flat colors, each landing on one spot of the cloud. The positions were
 // recorded once from the projection in src/stage/math.ts (resting angle
-// -π/4) for a 597.984375 × 325 stage, the size it has at 1440 × 900.
+// -π/4) for a 597.984375 × 325 stage, the size it has at 1440 × 900. The
+// view is fitted to the two colors, so their midpoint sits at the stage's
+// center and the pair, at its widest over a full turn, fills the stage's
+// height to the margin.
 const FIXTURE = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" shape-rendering="crispEdges"><rect width="50" height="100" fill="#c83c3c"/><rect x="50" width="50" height="100" fill="#3cb4c8"/></svg>`,
 );
@@ -105,11 +108,11 @@ const STAGE = { width: 597.984375, height: 325 };
 const RECORDED = [
   {
     rgb: [200, 60, 60],
-    at: { rgb: [376.26, 212.95], oklab: [297.34, 139.21] },
+    at: { rgb: [453.12, 250.28], oklab: [206.83, 51.0] },
   },
   {
     rgb: [60, 180, 200],
-    at: { rgb: [221.72, 124.94], oklab: [337.08, 187.29] },
+    at: { rgb: [144.86, 74.72], oklab: [391.16, 274.0] },
   },
 ];
 

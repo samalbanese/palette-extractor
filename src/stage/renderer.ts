@@ -1,4 +1,11 @@
-import { bitReversalOrder, coverTransform, imagePoint, TILT } from "./math";
+import {
+  bitReversalOrder,
+  coverTransform,
+  imagePoint,
+  TILT,
+  viewScale,
+  type ViewFit,
+} from "./math";
 import { prepare, yieldTask, type Renderer } from "./data";
 import type { StageSamples } from "../lib/extraction";
 
@@ -10,7 +17,7 @@ layout(location=2) in vec3 aColor;
 layout(location=3) in float aGroup;
 uniform vec2 uSize;
 uniform vec4 uTime;
-uniform vec3 uView;
+uniform vec4 uView;
 uniform vec3 uCenters[32];
 uniform vec3 uColors[32];
 out vec4 vColor;
@@ -18,7 +25,7 @@ vec2 projectPoint(vec3 p) {
   float x = p.x*cos(uView.x)+p.z*sin(uView.x);
   float z = -p.x*sin(uView.x)+p.z*cos(uView.x);
   float y = p.y*${Math.cos(TILT)}-z*${Math.sin(TILT)};
-  return uSize*.5+vec2(x,-y)*(min(uSize.x,uSize.y)-44.)/360.;
+  return uSize*.5+vec2(x,-y)*uView.w;
 }
 void main() {
   int g = int(aGroup);
@@ -84,6 +91,7 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
     height = 1,
     dpr = 1;
   let samples: StageSamples | undefined;
+  let fit: ViewFit | undefined;
   let order: Uint32Array = new Uint32Array(0);
   let disposed = false;
   let lost = () => {};
@@ -113,7 +121,7 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
     upload(0, frame);
   };
   return {
-    async setSamples(next, space) {
+    async setSamples(next, space, nextFit) {
       samples = next;
       order = bitReversalOrder(next.groups.length);
       const colors = new Float32Array(order.length * 3);
@@ -127,8 +135,9 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
       upload(2, colors);
       upload(3, groups);
       await yieldTask();
-      const data = prepare(next, space);
+      const data = prepare(next, space, nextFit);
       if (disposed) return data;
+      fit = data.fit;
       const cube = new Float32Array(data.cube.length);
       order.forEach((i, j) =>
         cube.set(data.cube.subarray(i * 3, i * 3 + 3), j * 3),
@@ -176,7 +185,13 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
               Math.min(state.points, order.length),
           )
         : 2;
-      gl.uniform3f(uniforms.View, state.angle, dpr, pitch * 1.35);
+      gl.uniform4f(
+        uniforms.View,
+        state.angle,
+        dpr,
+        pitch * 1.35,
+        fit ? viewScale(width, height, fit) : 0,
+      );
       gl.drawArrays(gl.POINTS, 0, Math.min(state.points, order.length));
     },
     onContextLost(callback) {

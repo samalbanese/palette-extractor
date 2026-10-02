@@ -1,4 +1,4 @@
-import { coverTransform, imagePoint, TILT } from "./math";
+import { coverTransform, imagePoint, TILT, viewScale } from "./math";
 import { prepare, type CloudData, type Renderer } from "./data";
 
 const TILT_COS = Math.cos(TILT);
@@ -31,8 +31,8 @@ export function create(canvas: HTMLCanvasElement): Renderer {
       );
   };
   return {
-    async setSamples(samples, space) {
-      data = prepare(samples, space);
+    async setSamples(samples, space, fit) {
+      data = prepare(samples, space, fit);
       frame = new Float64Array(samples.groups.length * 2);
       styles = new Array<string>(samples.groups.length);
       styleKeys = new Int32Array(samples.groups.length).fill(-1);
@@ -49,7 +49,7 @@ export function create(canvas: HTMLCanvasElement): Renderer {
     },
     draw(state) {
       if (!data) return;
-      const { samples, cube, order, centroids } = data;
+      const { samples, cube, fit, order, centroids } = data;
       ctx.clearRect(0, 0, width, height);
       const pull = state.converge * (1 - state.release);
       ctx.globalAlpha =
@@ -64,7 +64,7 @@ export function create(canvas: HTMLCanvasElement): Renderer {
         (pitch * 1.35 * (1 - state.toCloud) + 2.5 * state.toCloud) / 2;
       const cos = Math.cos(state.angle),
         sin = Math.sin(state.angle);
-      const scale = (Math.min(width, height) - 44) / 360;
+      const scale = viewScale(width, height, fit);
       for (let j = 0; j < Math.min(4000, order.length); j++) {
         const i = order[j],
           g = samples.groups[i],
