@@ -113,11 +113,21 @@ test("with reduced motion the animation control never appears, not even for a fr
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.addInitScript(() => {
-    (window as unknown as { sawControl: boolean }).sawControl = false;
-    new MutationObserver(() => {
-      for (const b of document.querySelectorAll("button"))
-        if (/animation/.test(b.textContent ?? ""))
-          (window as unknown as { sawControl: boolean }).sawControl = true;
+    const w = window as unknown as { sawControl: boolean };
+    w.sawControl = false;
+    // Check the nodes each mutation added, not just the live DOM, so a
+    // control that is mounted and removed before the callback still counts.
+    const isControl = (node: Node | null) => {
+      const el = node instanceof Element ? node : node?.parentElement;
+      if (!el) return false;
+      return [el.closest("button"), ...el.querySelectorAll("button")].some(
+        (b) => b !== null && /animation/.test(b.textContent ?? ""),
+      );
+    };
+    new MutationObserver((records) => {
+      for (const record of records)
+        if (isControl(record.target) || [...record.addedNodes].some(isControl))
+          w.sawControl = true;
     }).observe(document, {
       childList: true,
       subtree: true,
@@ -304,7 +314,9 @@ function floorProblems(page: Page) {
         const box = el.getBoundingClientRect();
         if (!box.width || !box.height) continue;
         const size = parseFloat(getComputedStyle(el).fontSize);
-        const min = el.closest(METADATA) ? 11 : 13;
+        // The cube's bottom line is metadata, but its buttons are controls.
+        const min =
+          el.closest(METADATA) && !el.closest(".animation-controls") ? 11 : 13;
         if (size < min)
           out.push(`${size}px "${text.slice(0, 24)}" (${el.className})`);
       }
@@ -354,7 +366,7 @@ for (const width of [1440, 1024, 900, 851]) {
   });
 }
 
-test("the desktop text floor holds with motion on, after an upload, in the URL form and on a shared link", async ({
+test("the desktop text floor holds with motion on, after an upload, in the URL form, while processing, on an error and on a shared link", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -382,6 +394,35 @@ test("the desktop text floor holds with motion on, after an upload, in the URL f
   await page.getByRole("button", { name: "Use URL", exact: true }).click();
   await expect(page.getByLabel("Public image URL")).toBeVisible();
   await scan("url form");
+
+  // Hold the URL load open so the processing badge stays on screen.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("https://example.com/held.svg", async (route) => {
+    await held;
+    await route.fulfill({
+      contentType: "image/svg+xml",
+      headers: { "access-control-allow-origin": "*" },
+      body: svg("#bc4749"),
+    });
+  });
+  await page
+    .getByLabel("Public image URL")
+    .fill("https://example.com/held.svg");
+  await page.getByRole("button", { name: "Load", exact: true }).click();
+  await expect(page.locator(".processing-badge")).toBeVisible();
+  await scan("processing");
+  release();
+  await ready(page);
+  await expect(page.locator(".image-caption")).toContainText("held.svg");
+
+  await page.locator("input[type=file]").setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("not an image"),
+  });
+  await expect(page.locator(".error-banner")).toBeVisible();
+  await scan("error");
 
   await page.goto("/#p=2a6f97.f2e8cf.bc4749");
   await page.reload();
