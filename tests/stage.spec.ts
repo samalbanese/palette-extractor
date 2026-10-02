@@ -435,14 +435,18 @@ test("a new sample uses the short intro and preserves its palette", async ({
   await stageDone(page);
   await page.getByRole("button", { name: "Try Forest floor" }).click();
   await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
-  const start = await page.evaluate(() => performance.now());
+  // The page's own start and end marks, so a slow round trip to the browser
+  // cannot shorten the measured intro.
   await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/, {
     timeout: 2500,
   });
+  const mark = async (name: string) =>
+    Number(await host(page).getAttribute(name));
   const duration =
-    Number(await host(page).getAttribute("data-stage-done-at")) - start;
+    (await mark("data-stage-done-at")) - (await mark("data-stage-started-at"));
   expect(duration).toBeLessThan(2000);
-  expect(duration).toBeGreaterThan(900);
+  // The short intro is 1,200 ms; one frame of slack.
+  expect(duration).toBeGreaterThanOrEqual(1150);
   expect(
     await page
       .locator(".swatch-select")
