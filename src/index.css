@@ -508,7 +508,7 @@ code {
 }
 .section-label h2 > span {
   font: 10px var(--font-mono);
-  color: #898c8e;
+  color: #a1a3a4;
 }
 .section-label h2 b {
   font: 10px var(--font-mono);
@@ -743,7 +743,7 @@ code {
 }
 .source-actions > span {
   font-size: 10px;
-  color: #979b9d;
+  color: #a1a3a4;
 }
 .value-switch {
   display: flex;
@@ -993,7 +993,7 @@ select {
 }
 .palette-hint {
   font-size: 10px;
-  color: #9a9d9e;
+  color: #a1a3a4;
   line-height: 1.5;
   margin: 10px 0 0;
 }
