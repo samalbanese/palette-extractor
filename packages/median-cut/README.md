@@ -79,4 +79,4 @@ needed for the output.
 ## Demo
 
 See it running on real images at the
-[Palette Extractor live demo](https://palette-extractor.samalbanese.workers.dev/).
+[Palette Extractor live demo](https://palette.samalbanese.com/).

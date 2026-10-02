@@ -5,7 +5,7 @@
 
 **Color, pulled into focus.** A private color studio that takes an image from inspiration to usable design values. Upload a photo, explore its palette, see it applied to an identity, and take the colors straight into your next project.
 
-[Open the live app](https://palette-extractor.samalbanese.workers.dev/)
+[Open the live app](https://palette.samalbanese.com/)
 
 ![Palette Extractor color studio with a desert photograph and its extracted colors](.github/studio.webp)
 

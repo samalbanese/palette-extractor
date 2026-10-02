@@ -516,7 +516,7 @@ test.describe("on a touch phone", () => {
   });
 });
 
-const SITE = "https://palette-extractor.samalbanese.workers.dev/";
+const SITE = "https://palette.samalbanese.com/";
 const PREVIEW_TAGS = [
   "og:type",
   "og:site_name",
