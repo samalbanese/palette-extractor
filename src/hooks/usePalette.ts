@@ -26,7 +26,6 @@ interface UsePaletteOptions {
   setLoaded: (source: Source) => void;
   setError: (message: string | null) => void;
   setNotice: (message: string) => void;
-  setSelectedHex: (hex: string | null) => void;
 }
 
 /**
@@ -40,7 +39,6 @@ export function usePalette({
   setLoaded,
   setError,
   setNotice,
-  setSelectedHex,
 }: UsePaletteOptions) {
   const [detail, setDetail] = useState<ExtractionDetail>({
     colors: initialColors?.map((color) => ({ color, population: 1 })) ?? [],
@@ -106,7 +104,6 @@ export function usePalette({
         });
         setDetailColorSpace(colorSpace);
         setLoaded(source);
-        setSelectedHex(null);
         setError(null);
         if (isSwitch) {
           const changed = new Set(

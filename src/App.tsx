@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import sunset from "./assets/sample.svg";
-import { Swatch, type ValueKind } from "./components/Swatch";
+import { type ValueKind } from "./components/Swatch";
+import { SwatchGrid, usePresentation } from "./components/SwatchGrid";
 import { ThemePreview } from "./components/ThemePreview";
 import { Icon } from "./components/Icon";
 import {
@@ -104,12 +105,15 @@ export default function App() {
   const [valueKind, setValueKind] = useState<ValueKind>("hex");
   const [format, setFormat] = useState<ExportFormat>("css");
   const [activeTab, setActiveTab] = useState<Tab>("context");
-  const [selectedHex, setSelectedHex] = useState<string | null>(null);
+  // A selection lasts while its swatch does, until the next new photo.
+  const [selection, setSelection] = useState<{
+    id: string;
+    photo: number;
+  } | null>(null);
 
   const shared = useSharedPalette((colors) => {
     imageSource.resetForShared();
     palette.loadShared(colors);
-    setSelectedHex(null);
   });
 
   const imageSource = useImageSource({
@@ -126,7 +130,6 @@ export default function App() {
     setLoaded: imageSource.setLoaded,
     setError: imageSource.setError,
     setNotice: copyFeedback.setNotice,
-    setSelectedHex,
   });
 
   const { source, loaded, error, dragging, urlBusy, showUrl, url, fileInput } =
@@ -196,9 +199,13 @@ export default function App() {
     [loaded, palette.detail, palette.detailColorSpace, sorted],
   );
 
-  // The inspector falls back to the first color; the swatches must agree.
-  const selected = colors.find((c) => rgbToHex(c) === selectedHex) ?? colors[0];
-  const selectedKey = selected ? rgbToHex(selected) : null;
+  const presentation = usePresentation(sorted, loaded, lockedSet);
+  // The inspector falls back to the first swatch; the swatches must agree.
+  const selectedSwatch =
+    (selection?.photo === presentation.photo &&
+      presentation.swatches.find((swatch) => swatch.id === selection.id)) ||
+    presentation.swatches[0];
+  const selected = selectedSwatch?.color;
   const showWeights = !!loaded && locked.length === 0;
 
   const copy = (text: string, key: string) => void copyFeedback.copy(text, key);
@@ -455,27 +462,22 @@ export default function App() {
               disabled={busy}
             >
               <legend className="sr-only">Extracted colors</legend>
-              <div className={`swatch-grid format-${valueKind}`}>
-                {sorted.map((entry, i) => (
-                  <Swatch
-                    key={`${rgbToHex(entry.color)}-${i}`}
-                    color={entry.color}
-                    index={i}
-                    locked={lockedSet.has(rgbToHex(entry.color))}
-                    weight={total ? entry.population / total : 0}
-                    name={nearestColorName(entry.color)}
-                    onToggleLock={() => palette.toggleLock(entry.color)}
-                    valueKind={valueKind}
-                    onCopy={(text, key) => copy(text, key)}
-                    copied={copied}
-                    selected={selectedKey === rgbToHex(entry.color)}
-                    onSelect={() => setSelectedHex(rgbToHex(entry.color))}
-                    showWeight={showWeights}
-                    canLock={!!source}
-                    changed={changedHexes.has(rgbToHex(entry.color))}
-                  />
-                ))}
-              </div>
+              <SwatchGrid
+                presentation={presentation}
+                valueKind={valueKind}
+                total={total}
+                showWeights={showWeights}
+                lockedSet={lockedSet}
+                canLock={!!source}
+                changedHexes={changedHexes}
+                copied={copied}
+                onCopy={copy}
+                onToggleLock={palette.toggleLock}
+                selectedId={selectedSwatch?.id ?? null}
+                onSelect={(id) =>
+                  setSelection({ id, photo: presentation.photo })
+                }
+              />
             </fieldset>
             <div className="palette-toolbar">
               <div
