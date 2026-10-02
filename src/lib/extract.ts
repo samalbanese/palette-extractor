@@ -5,13 +5,82 @@ import type {
   SplitStep,
   WeightedColor,
 } from "@samalbanese/median-cut";
-import type { WorkerRequest } from "./quantize.worker";
+import type { StageSamples, WorkerRequest } from "./extraction";
 const MAX_DIMENSION = 320;
 const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG.";
+
 export interface ExtractionDetail {
   colors: WeightedColor[];
   pixels: Pixel[];
   steps: SplitStep[];
+  /** Null for palettes that did not come from an image, such as share links. */
+  samples: StageSamples | null;
+}
+
+/** The parts of a Worker the extraction round trip uses. */
+export interface WorkerLike {
+  onmessage: ((event: MessageEvent) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
+  postMessage(message: unknown, transfer: Transferable[]): void;
+  terminate(): void;
+}
+
+function createQuantizeWorker(): WorkerLike {
+  return new Worker(new URL("./quantize.worker.ts", import.meta.url), {
+    type: "module",
+  });
+}
+
+/**
+ * Sends one request to a fresh worker and settles with its reply. Cancelling
+ * terminates the worker and detaches its handlers, so a reply already in
+ * flight can never settle a newer extraction.
+ */
+export function runInWorker(
+  request: WorkerRequest,
+  transfer: Transferable[],
+  signal?: AbortSignal,
+  createWorker: () => WorkerLike = createQuantizeWorker,
+): Promise<ExtractionDetail> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Extraction cancelled.", "AbortError"));
+      return;
+    }
+    const worker = createWorker();
+    const cleanup = () => {
+      worker.onmessage = null;
+      worker.onerror = null;
+      worker.terminate();
+      signal?.removeEventListener("abort", abort);
+    };
+    const abort = () => {
+      cleanup();
+      reject(new DOMException("Extraction cancelled.", "AbortError"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    worker.onmessage = (
+      event: MessageEvent<ExtractionDetail & { error?: string }>,
+    ) => {
+      cleanup();
+      if (event.data.error) reject(new Error(event.data.error));
+      else resolve(event.data);
+    };
+    worker.onerror = () => {
+      cleanup();
+      reject(
+        new Error(
+          "Color extraction could not start. Reload the page and try again.",
+        ),
+      );
+    };
+    try {
+      worker.postMessage(request, transfer);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
 }
 
 export function loadImage(
@@ -151,39 +220,5 @@ export async function extractPaletteDetailed(
     colorSpace,
   );
 
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("Extraction cancelled.", "AbortError"));
-      return;
-    }
-    const worker = new Worker(
-      new URL("./quantize.worker.ts", import.meta.url),
-      { type: "module" },
-    );
-    const cleanup = () => {
-      worker.terminate();
-      signal?.removeEventListener("abort", abort);
-    };
-    const abort = () => {
-      cleanup();
-      reject(new DOMException("Extraction cancelled.", "AbortError"));
-    };
-    signal?.addEventListener("abort", abort, { once: true });
-    worker.onmessage = (
-      event: MessageEvent<ExtractionDetail & { error?: string }>,
-    ) => {
-      cleanup();
-      if (event.data.error) reject(new Error(event.data.error));
-      else resolve(event.data);
-    };
-    worker.onerror = () => {
-      cleanup();
-      reject(
-        new Error(
-          "Color extraction could not start. Reload the page and try again.",
-        ),
-      );
-    };
-    worker.postMessage(request, transfer);
-  });
+  return runInWorker(request, transfer, signal);
 }

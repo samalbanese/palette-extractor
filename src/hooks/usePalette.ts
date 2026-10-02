@@ -8,6 +8,7 @@ import {
 } from "react";
 import { type RGB, type SortMode, rgbToHex, sortPalette } from "../lib/color";
 import { extractPaletteDetailed, type ExtractionDetail } from "../lib/extract";
+import { withoutBoxes } from "../lib/stageGroups";
 import { updatePaletteFavicon } from "../lib/favicon";
 import { oklabDistance, type ColorSpace } from "@samalbanese/median-cut";
 import type { Source } from "./useImageSource";
@@ -45,6 +46,7 @@ export function usePalette({
     colors: initialColors?.map((color) => ({ color, population: 1 })) ?? [],
     pixels: [],
     steps: [],
+    samples: null,
   });
   const [locked, setLocked] = useState<RGB[]>(initialColors ?? []);
   const [count, setCount] = useState(initialColors?.length ?? 6);
@@ -94,7 +96,13 @@ export function usePalette({
             ...locked.map((color) => ({ color, population: 0 })),
             ...unlocked,
           ],
-          ...(remaining <= 0 ? { pixels: [], steps: [] } : {}),
+          ...(remaining <= 0
+            ? {
+                pixels: [],
+                steps: [],
+                samples: next.samples && withoutBoxes(next.samples),
+              }
+            : {}),
         });
         setDetailColorSpace(colorSpace);
         setLoaded(source);
@@ -180,6 +188,7 @@ export function usePalette({
       colors: colors.map((color) => ({ color, population: 1 })),
       pixels: [],
       steps: [],
+      samples: null,
     });
     setLocked(colors);
     setCount(colors.length);
