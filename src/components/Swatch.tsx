@@ -47,6 +47,9 @@ export function Swatch({
       : valueKind === "rgb"
         ? formatRgb(color)
         : formatHsl(rgbToHsl(color));
+  // Keyed by position, not color, so a repeated color or the inspector's copy
+  // of the same value does not show this swatch's confirmation.
+  const copyKey = `swatch ${index}`;
   return (
     <article
       className={`swatch ${selected ? "selected" : ""} ${changed ? "changed" : ""}`}
@@ -95,9 +98,12 @@ export function Swatch({
       </div>
       <div className="swatch-info">
         <span>{name}</span>
-        <button onClick={() => onCopy(value, hex)} aria-label={`Copy ${value}`}>
-          <code>{copied === hex ? "Copied!" : value}</code>
-          <Icon name={copied === hex ? "check" : "copy"} size={13} />
+        <button
+          onClick={() => onCopy(value, copyKey)}
+          aria-label={`Copy ${value}`}
+        >
+          <code>{copied === copyKey ? "Copied!" : value}</code>
+          <Icon name={copied === copyKey ? "check" : "copy"} size={13} />
         </button>
       </div>
     </article>

@@ -487,10 +487,12 @@ export default function App() {
               ].map((value) => (
                 <button
                   key={value}
-                  onClick={() => copy(value, value)}
+                  onClick={() => copy(value, `inspector ${value}`)}
                   aria-label={`Copy ${value} from inspector`}
                 >
-                  <code>{copied === value ? "Copied!" : value}</code>
+                  <code>
+                    {copied === `inspector ${value}` ? "Copied!" : value}
+                  </code>
                 </button>
               ))}
             </div>

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { ready, settled, svg } from "./helpers";
 
@@ -148,6 +148,30 @@ test("each export format previews and downloads the same valid content", async (
   expect((await card).suggestedFilename()).toMatch(/^palette-.+\.png$/);
 });
 
+// Waits until the expected control confirms a copy, then lists every button
+// showing a confirmation in that same instant. Confirmations clear themselves
+// after a moment, so a retrying assertion on the other buttons could pass just
+// by waiting them out.
+async function confirmations(page: Page, expected: string) {
+  const shown = await page.waitForFunction((expected) => {
+    const where = (b: Element) =>
+      b.closest(".export-panel")
+        ? "export panel"
+        : b.closest(".dock-actions")
+          ? "dock"
+          : b.closest(".inspector")
+            ? "inspector"
+            : b.closest(".swatch")
+              ? `swatch ${[...document.querySelectorAll(".swatch")].indexOf(b.closest(".swatch")!) + 1}`
+              : "elsewhere";
+    const list = [...document.querySelectorAll("button")]
+      .filter((b) => /^Copied/.test(b.textContent?.trim() ?? ""))
+      .map(where);
+    return list.includes(expected) ? list : null;
+  }, expected);
+  return shown.jsonValue();
+}
+
 test("only the copy button that was clicked shows its confirmation", async ({
   page,
   context,
@@ -155,26 +179,47 @@ test("only the copy button that was clicked shows its confirmation", async ({
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await ready(page);
+  const hex = (
+    await page.locator(".swatch-info code").first().innerText()
+  ).trim();
+
+  await page
+    .locator(".swatch-info")
+    .first()
+    .getByRole("button", { name: `Copy ${hex}`, exact: true })
+    .click();
+  expect(await confirmations(page, "swatch 1")).toEqual(["swatch 1"]);
+
+  await page
+    .getByRole("button", { name: `Copy ${hex} from inspector`, exact: true })
+    .click();
+  expect(await confirmations(page, "inspector")).toEqual(["inspector"]);
+
   await page.getByRole("tab", { name: "Export palette" }).click();
-  const panelButton = page.locator(".export-panel").getByRole("button", {
-    name: /^(Copy code|Copied)$/,
-  });
-  const barButton = page.locator(".palette-dock").getByRole("button", {
-    name: /^(Copy palette|Copied)$/,
-  });
+  await page
+    .locator(".export-panel")
+    .getByRole("button", { name: "Copy code", exact: true })
+    .click();
+  expect(await confirmations(page, "export panel")).toEqual(["export panel"]);
 
-  // The confirmation clears itself after a moment, so the other button is
-  // read once, while the clicked one still says "Copied", not retried.
-  const label = async (button: typeof panelButton) =>
-    (await button.textContent())?.trim();
+  await page.getByRole("button", { name: "Copy palette", exact: true }).click();
+  expect(await confirmations(page, "dock")).toEqual(["dock"]);
+});
 
-  await panelButton.click();
-  await expect(panelButton).toHaveText("Copied");
-  expect(await label(barButton)).toBe("Copy palette");
-
-  await barButton.click();
-  await expect(barButton).toHaveText("Copied");
-  expect(await label(panelButton)).toBe("Copy code");
+test("a shared palette with a repeated color confirms only the swatch copied", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#p=5f92ad.352114.5f92ad");
+  await page.reload();
+  await expect(page.locator(".swatch")).toHaveCount(3);
+  await page
+    .locator(".swatch")
+    .nth(2)
+    .getByRole("button", { name: "Copy #5f92ad", exact: true })
+    .click();
+  expect(await confirmations(page, "swatch 3")).toEqual(["swatch 3"]);
 });
 
 test("algorithm and contrast tools work with keyboard tabs and reduced motion", async ({
