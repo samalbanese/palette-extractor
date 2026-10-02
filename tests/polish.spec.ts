@@ -47,6 +47,76 @@ async function setCount(page: Page, target: number) {
   await expect(page.locator(".swatch")).toHaveCount(target);
 }
 
+for (const width of [320, 390, 768, 1440]) {
+  test(`contrast tiles keep "Aa" clear of the ratio and verdict at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await ready(page);
+    await page.evaluate(() => document.fonts.ready);
+    await page.getByRole("tab", { name: "Contrast check" }).click();
+    await expect(page.locator(".contrast-pair").first()).toBeVisible();
+    const tiles = await page
+      .locator(".contrast-grid > li")
+      .evaluateAll((items) =>
+        items.map((item) => {
+          const textBox = (node: Node) => {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const rect = range.getBoundingClientRect();
+            return {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              lines: new Set(
+                [...range.getClientRects()]
+                  .filter((r) => r.width > 0)
+                  .map((r) => Math.round(r.top)),
+              ).size,
+            };
+          };
+          const sample = item.querySelector(".contrast-sample")!;
+          const aa = sample.querySelector(":scope > span:first-child")!;
+          const ratio = sample.querySelector(".contrast-ratio");
+          const verdict = sample.querySelector(".contrast-verdict");
+          const tile = sample.getBoundingClientRect();
+          return {
+            text: (item as HTMLElement).innerText,
+            tile: {
+              left: tile.left,
+              top: tile.top,
+              right: tile.right,
+              bottom: tile.bottom,
+            },
+            aa: textBox(aa),
+            ratio: ratio && textBox(ratio),
+            verdict: verdict && textBox(verdict),
+          };
+        }),
+      );
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const tile of tiles) {
+      expect(tile.ratio, tile.text).not.toBeNull();
+      expect(tile.verdict, tile.text).not.toBeNull();
+      expect(intersects(tile.aa, tile.ratio!), tile.text).toBe(false);
+      expect(intersects(tile.aa, tile.verdict!), tile.text).toBe(false);
+      expect(tile.verdict!.lines, tile.text).toBeLessThanOrEqual(2);
+      // Every piece of text stays inside its tile.
+      for (const box of [tile.aa, tile.ratio!, tile.verdict!]) {
+        expect(box.left).toBeGreaterThanOrEqual(tile.tile.left);
+        expect(box.right).toBeLessThanOrEqual(tile.tile.right);
+        expect(box.top).toBeGreaterThanOrEqual(tile.tile.top);
+        expect(box.bottom).toBeLessThanOrEqual(tile.tile.bottom);
+      }
+      // One verdict per tile, not one inside and another below.
+      const verdicts = tile.text.match(/AAA|AA Large|Large text only|AA/g);
+      expect(verdicts, tile.text).toHaveLength(1);
+    }
+  });
+}
+
 test("no color name repeats, and the swatches, inspector and JSON export agree", async ({
   page,
 }) => {
