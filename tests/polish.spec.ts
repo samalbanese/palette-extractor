@@ -370,3 +370,20 @@ for (const width of [768, 1440]) {
     await axeClean(page);
   });
 }
+
+for (const width of [390, 768, 1440]) {
+  test(`the polished panels pass axe at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await ready(page);
+    await chooseSample(page, "Forest floor");
+    await settled(page);
+    await axeClean(page);
+    for (const tab of ["Contrast check", "How it works", "In context"]) {
+      await page.getByRole("tab", { name: tab }).click();
+      await settled(page);
+      await axeClean(page);
+    }
+  });
+}
