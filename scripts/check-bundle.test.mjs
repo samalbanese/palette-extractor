@@ -196,6 +196,43 @@ describe("checkBundle", () => {
     expect(result.problems.join("\n")).toMatch(/inline module script/);
   });
 
+  it("fails on a module the manifest does not list, whose imports it cannot follow", () => {
+    const dir = makeDist({
+      html: entryHtml(`<script type="module" src="/bootstrap.js"></script>`),
+      manifest: entryManifest(),
+      files: { "assets/index-a.js": 1 * KB, "bootstrap.js": 1 * KB },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toMatch(
+      /bootstrap\.js.*not in the manifest/,
+    );
+  });
+
+  it("resolves dot segments before looking a file up in the manifest", () => {
+    const dir = makeDist({
+      html: `<script type="module" src="/assets/../assets/index-a.js"></script>`,
+      manifest: entryManifest({
+        "src/dep.ts": { file: "assets/dep-e.js", imports: [] },
+        "index.html": {
+          file: "assets/index-a.js",
+          src: "index.html",
+          isEntry: true,
+          imports: ["src/dep.ts"],
+          dynamicImports: [],
+        },
+      }),
+      files: { "assets/index-a.js": 1 * KB, "assets/dep-e.js": 1 * KB },
+    });
+    expect(
+      row(checkBundle(dir, budgets), "first-load JS").files.sort(),
+    ).toEqual([
+      "assets/dep-e.js",
+      "assets/index-a.js",
+      "assets/quantize.worker-abc.js",
+    ]);
+  });
+
   it("follows the imports of an entry referenced by a relative path", () => {
     const dir = makeDist({
       html:

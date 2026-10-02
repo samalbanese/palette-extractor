@@ -2,7 +2,7 @@
 // loaded Stage renderer, grows past its gzip budget. Sizes are measured the
 // way they travel: each file gzipped on its own.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
@@ -31,8 +31,9 @@ function attr(tag, name) {
   return undefined;
 }
 
-/** One spelling per file: "/assets/a.js" and "./assets/a.js" are "assets/a.js". */
-const canonical = (path) => path.replace(/^(?:\.?\/)+/, "");
+/** One spelling per file: "/assets/a.js", "./assets/a.js" and "/x/../assets/a.js" are "assets/a.js". */
+const canonical = (path) =>
+  posix.normalize(path.replace(/^(?:\.?\/)+/, "")).replace(/^(?:\.\/)+/, "");
 
 export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
   const problems = [];
@@ -86,6 +87,12 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     .filter(Boolean);
   const htmlFiles = [...scripts, ...preloads].map(canonical);
 
+  // A module the manifest does not list could import anything unmeasured.
+  for (const file of htmlFiles)
+    if (!keyOfFile.has(file))
+      problems.push(
+        `${file} is loaded by index.html but not in the manifest, so its imports cannot be measured`,
+      );
   const firstLoad = new Set(htmlFiles);
   for (const file of closure(
     htmlFiles.map((f) => keyOfFile.get(f)).filter(Boolean),
