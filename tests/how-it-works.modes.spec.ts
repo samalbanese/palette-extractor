@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { ready, svg } from "./helpers";
 
 // Box edges, color positions and final markers for a ten-band test image,
-// recorded once from the pure cube projection and the quantizer's split data
-// at the renderer size and still angle below.
+// recorded once from the cube projection, fitted to the image's samples, and
+// the quantizer's split data at the renderer size and still angle below.
 const FIXTURE = JSON.parse(
   readFileSync(new URL("./fixtures/trace-geometry.json", import.meta.url), {
     encoding: "utf8",
@@ -488,16 +488,11 @@ test.describe("geometry, with reduced motion for a still angle", () => {
     await expect(page.locator(".contrast-empty")).toHaveCount(0);
     await expect(slider(page)).toHaveCount(0);
     const { points, overlay } = await readLayers(page);
-    // Where this color sits in the RGB cube, projected the same way the
-    // recorded fixture was.
-    const { width, height, angle } = FIXTURE.renderer;
-    const [x, y, z] = channels(color).map((v) => v - 127.5);
-    const scale = (Math.min(width, height) - 44) / 360;
-    const tilt = Math.PI / 9;
-    const rotatedZ = -x * Math.sin(angle) + z * Math.cos(angle);
-    const px = width / 2 + (x * Math.cos(angle) + z * Math.sin(angle)) * scale;
-    const py =
-      height / 2 - (y * Math.cos(tilt) - rotatedZ * Math.sin(tilt)) * scale;
+    // The view is fitted to the samples, so a single color sits at its
+    // center from any angle.
+    const { width, height } = FIXTURE.renderer;
+    const px = width / 2;
+    const py = height / 2;
     expect(painted(points)).toBeGreaterThan(0);
     expect(inked(points, px, py, 2)).toBe(true);
     const [r, g, b, a] = pixel(overlay, Math.floor(px), Math.floor(py));

@@ -1,4 +1,12 @@
-import { bitReversalOrder, coverTransform, imagePoint, TILT } from "./math";
+import {
+  bitReversalOrder,
+  coverTransform,
+  FIT_SHARE,
+  FRAME_MARGIN,
+  imagePoint,
+  TILT,
+  VIEW_RADIUS,
+} from "./math";
 import { prepare, yieldTask, type Renderer } from "./data";
 import type { StageSamples } from "../lib/extraction";
 
@@ -18,7 +26,9 @@ vec2 projectPoint(vec3 p) {
   float x = p.x*cos(uView.x)+p.z*sin(uView.x);
   float z = -p.x*sin(uView.x)+p.z*cos(uView.x);
   float y = p.y*${Math.cos(TILT)}-z*${Math.sin(TILT)};
-  return uSize*.5+vec2(x,-y)*(min(uSize.x,uSize.y)-44.)/360.;
+  float side = min(uSize.x,uSize.y);
+  float scale = max(0.,min(${FIT_SHARE.toFixed(2)}*side,side*.5-${FRAME_MARGIN.toFixed(2)}))/${VIEW_RADIUS.toFixed(2)};
+  return uSize*.5+vec2(x,-y)*scale;
 }
 void main() {
   int g = int(aGroup);
@@ -113,7 +123,7 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
     upload(0, frame);
   };
   return {
-    async setSamples(next, space) {
+    async setSamples(next, space, fit) {
       samples = next;
       order = bitReversalOrder(next.groups.length);
       const colors = new Float32Array(order.length * 3);
@@ -127,7 +137,7 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
       upload(2, colors);
       upload(3, groups);
       await yieldTask();
-      const data = prepare(next, space);
+      const data = prepare(next, space, fit);
       if (disposed) return data;
       const cube = new Float32Array(data.cube.length);
       order.forEach((i, j) =>
