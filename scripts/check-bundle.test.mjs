@@ -109,6 +109,56 @@ describe("checkBundle", () => {
     expect(checkBundle(dir, budgets).ok).toBe(false);
   });
 
+  it("finds module scripts and preloads whatever quoting their tags use", () => {
+    const dir = makeDist({
+      html: entryHtml(
+        `<script type='module' src='/assets/extra-b.js'></script>` +
+          `<link rel=modulepreload href=/assets/pre-c.js>` +
+          `<script src = "/assets/spaced-d.js" type = "module"></script>`,
+      ),
+      manifest: entryManifest(),
+      files: {
+        "assets/index-a.js": 1 * KB,
+        "assets/extra-b.js": 8 * KB,
+        "assets/pre-c.js": 8 * KB,
+        "assets/spaced-d.js": 8 * KB,
+      },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(row(result, "first-load JS").files.sort()).toEqual([
+      "assets/extra-b.js",
+      "assets/index-a.js",
+      "assets/pre-c.js",
+      "assets/quantize.worker-abc.js",
+      "assets/spaced-d.js",
+    ]);
+    expect(result.ok).toBe(false);
+  });
+
+  it("follows the imports of an entry referenced by a relative path", () => {
+    const dir = makeDist({
+      html:
+        `<script type="module" src="./assets/index-a.js"></script>` +
+        `<link rel="modulepreload" href="/assets/index-a.js">`,
+      manifest: entryManifest({
+        "index.html": {
+          file: "assets/index-a.js",
+          isEntry: true,
+          imports: ["_dep.js"],
+        },
+        "_dep.js": { file: "assets/dep-c.js" },
+      }),
+      files: { "assets/index-a.js": 2 * KB, "assets/dep-c.js": 20 * KB },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(row(result, "first-load JS").files.sort()).toEqual([
+      "assets/dep-c.js",
+      "assets/index-a.js",
+      "assets/quantize.worker-abc.js",
+    ]);
+    expect(result.ok).toBe(false);
+  });
+
   it("counts the startup worker and requires exactly one", () => {
     const base = {
       html: entryHtml(),

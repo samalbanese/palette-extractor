@@ -16,9 +16,19 @@ function tagsOf(html, name) {
   );
 }
 
+// HTML allows double, single or no quotes, and spaces around "=".
 function attr(tag, name) {
-  return tag.match(new RegExp(`\\b${name}="([^"]*)"`, "i"))?.[1];
+  const m = tag.match(
+    new RegExp(
+      `\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`,
+      "i",
+    ),
+  );
+  return m ? (m[1] ?? m[2] ?? m[3]) : undefined;
 }
+
+/** One spelling per file: "/assets/a.js" and "./assets/a.js" are "assets/a.js". */
+const canonical = (path) => path.replace(/^(?:\.?\/)+/, "");
 
 export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
   const problems = [];
@@ -33,7 +43,10 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
   const html = readFileSync(htmlPath, "utf8");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const keyOfFile = new Map(
-    Object.entries(manifest).map(([key, chunk]) => [chunk.file, key]),
+    Object.entries(manifest).map(([key, chunk]) => [
+      canonical(chunk.file),
+      key,
+    ]),
   );
   const closure = (keys) => {
     const files = new Set();
@@ -41,7 +54,7 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     const walk = (key) => {
       if (seen.has(key) || !manifest[key]) return;
       seen.add(key);
-      files.add(manifest[key].file);
+      files.add(canonical(manifest[key].file));
       for (const next of manifest[key].imports ?? []) walk(next);
     };
     keys.forEach(walk);
@@ -57,9 +70,7 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     .filter((tag) => attr(tag, "rel") === "modulepreload")
     .map((tag) => attr(tag, "href"))
     .filter(Boolean);
-  const htmlFiles = [...scripts, ...preloads].map((src) =>
-    src.replace(/^\//, ""),
-  );
+  const htmlFiles = [...scripts, ...preloads].map(canonical);
 
   const firstLoad = new Set(htmlFiles);
   for (const file of closure(
