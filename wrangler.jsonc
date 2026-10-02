@@ -4,5 +4,7 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "routes": [{ "pattern": "palette.samalbanese.com", "custom_domain": true }],
+  "workers_dev": true
 }
