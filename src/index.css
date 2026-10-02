@@ -1232,8 +1232,8 @@ select {
   left: -20px;
   display: grid;
   place-content: center;
-  width: 86px;
-  height: 86px;
+  width: 94px;
+  height: 94px;
   font-family: Georgia, serif;
   font-style: italic;
   font-size: 17px;
@@ -1860,8 +1860,8 @@ select {
     display: inline;
   }
   .brand-sticker {
-    width: 100px;
-    height: 100px;
+    width: 108px;
+    height: 108px;
     font-size: 20px;
   }
   .workbench-nav {
@@ -2178,8 +2178,8 @@ select {
     min-height: 185px;
   }
   .brand-sticker {
-    width: 65px;
-    height: 65px;
+    width: 78px;
+    height: 78px;
     font-size: 14px;
     bottom: 12px;
     left: -11px;

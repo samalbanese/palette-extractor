@@ -274,3 +274,58 @@ test("the upload button carries no external-link arrow", async ({ page }) => {
   await expect(upload).not.toContainText("↗");
   await expect(upload.locator(".shortcut")).toHaveCount(0);
 });
+
+for (const width of [390, 768, 1440]) {
+  test(`the sticker text stays inside its circle at ${width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+    await ready(page);
+    await page.evaluate(() => document.fonts.ready);
+    await settled(page);
+    const sticker = page.locator(".brand-sticker");
+    await sticker.scrollIntoViewIfNeeded();
+    // Rotation turns about the center, so it cannot move text in or out of
+    // the circle; take it off and paint the text and disc in pure colors
+    // with nothing else around them.
+    await page.addStyleTag({
+      content: `
+        .brand-preview, .brand-preview * { visibility: hidden !important; }
+        .brand-preview .brand-sticker {
+          visibility: visible !important;
+          transform: none !important;
+          background: #0000ff !important;
+          color: #ff0000 !important;
+        }`,
+    });
+    const box = (await sticker.boundingBox())!;
+    const pad = 12;
+    const shot = await pixels(page, context, {
+      clip: {
+        x: box.x - pad,
+        y: box.y - pad,
+        width: box.width + pad * 2,
+        height: box.height + pad * 2,
+      },
+    });
+    const radius = box.width / 2;
+    const cx = shot.width / 2;
+    const cy = shot.height / 2;
+    let ink = 0;
+    let farthest = 0;
+    for (let y = 0; y < shot.height; y++)
+      for (let x = 0; x < shot.width; x++) {
+        const i = (y * shot.width + x) * 4;
+        const [r, g, b] = [shot.data[i], shot.data[i + 1], shot.data[i + 2]];
+        // Text ink: red, not the disc's blue or the dark page behind it.
+        if (r < 140 || g > 90 || b > 120) continue;
+        ink++;
+        farthest = Math.max(farthest, Math.hypot(x + 0.5 - cx, y + 0.5 - cy));
+      }
+    expect(ink).toBeGreaterThan(50);
+    // A clear ring of disc between the ink and the edge.
+    expect(farthest).toBeLessThanOrEqual(radius - 5);
+  });
+}
