@@ -165,7 +165,6 @@ export default function App() {
       <main>
         <section className="intro">
           <div>
-            <span className="eyebrow">AN IMAGE. A PALETTE. A POSSIBILITY.</span>
             <h1>
               Color, pulled into focus<span>.</span>
             </h1>

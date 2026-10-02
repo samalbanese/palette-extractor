@@ -213,3 +213,43 @@ for (const width of [390, 360, 320]) {
     ).toBe(true);
   });
 }
+
+const RETIRED_COPY = [
+  "AN IMAGE. A PALETTE. A POSSIBILITY.",
+  "FROM SWATCHES TO SOMETHING",
+  "A LITTLE MORE CONTRAST",
+  "BEAUTIFUL IS ONLY THE BEGINNING",
+  "THE METHOD BEHIND THE MOOD",
+  "READY FOR YOUR NEXT PROJECT",
+  "Good color.",
+];
+const TABS = ["In context", "Contrast check", "How it works", "Export palette"];
+
+test("no filler eyebrows or em dashes on any tab, and the export heading says what you get", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  for (const tab of TABS) {
+    await page.getByRole("tab", { name: tab }).click();
+    const text = await page.locator("body").innerText();
+    for (const phrase of RETIRED_COPY) expect(text, tab).not.toContain(phrase);
+    expect(text, `${tab} has an em dash`).not.toContain("\u2014");
+  }
+  await expect(page.locator(".eyebrow")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Paste-ready in 5 formats." }),
+  ).toBeVisible();
+
+  // The low-contrast variant of the identity panel had its own eyebrow.
+  // Changing only the hash keeps the open tab, so return to the identity panel.
+  await page.goto("/#p=777777.787878");
+  await ready(page);
+  await page.getByRole("tab", { name: "In context" }).click();
+  await expect(
+    page.getByText("They need a partner.", { exact: false }),
+  ).toBeVisible();
+  expect(await page.locator("body").innerText()).not.toContain(
+    "A LITTLE MORE CONTRAST",
+  );
+});

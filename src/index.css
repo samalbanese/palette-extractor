@@ -399,13 +399,6 @@ code {
   gap: 24px;
   padding: 42px 0 36px;
 }
-.eyebrow {
-  font-size: 10px;
-  letter-spacing: 2px;
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: #a1a3a4;
-}
 .intro h1 {
   font-size: clamp(30px, 3.2vw, 48px);
   font-weight: 500;
@@ -1613,9 +1606,6 @@ select {
     font-size: 36px;
     letter-spacing: -1.5px;
   }
-  .intro .eyebrow {
-    font-size: 8px;
-  }
   .intro p {
     font-size: 12px;
   }
@@ -1705,9 +1695,6 @@ select {
     grid-template-columns: 1fr 1fr;
     column-gap: 25px;
     align-items: start;
-  }
-  .panel-intro .eyebrow {
-    grid-column: 1/-1;
   }
   .panel-intro h2 {
     grid-column: 1;
@@ -1853,10 +1840,6 @@ select {
     font-size: 12px;
     line-height: 1.7;
     max-width: 290px;
-  }
-  .intro .eyebrow {
-    font-size: 8px;
-    letter-spacing: 1.4px;
   }
   .upload-main {
     margin-top: 21px;
@@ -2301,9 +2284,7 @@ select {
   .swatch-grid.format-rgb .swatch-info button code,
   .swatch-grid.format-hsl .swatch-info button code,
   .sample-row button span,
-  .intro .eyebrow,
   .swatch-info > span,
-  .eyebrow,
   .brand-kicker,
   code,
   kbd,

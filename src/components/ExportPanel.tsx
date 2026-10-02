@@ -43,12 +43,7 @@ export function ExportPanel({
   return (
     <section className="export-panel" aria-label="Export palette">
       <div className="panel-intro">
-        <span className="eyebrow">READY FOR YOUR NEXT PROJECT</span>
-        <h2>
-          Good color.
-          <br />
-          Ready to go.
-        </h2>
+        <h2>Paste-ready in {Object.keys(EXPORT_LABELS).length} formats.</h2>
         <p>
           Copy the values, download a file, or take a palette card with you. No
           cleanup required.

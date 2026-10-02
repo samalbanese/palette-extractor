@@ -18,7 +18,6 @@ export function ThemePreview({
     return (
       <section className="context-panel" aria-label="Palette in context">
         <div className="panel-intro">
-          <span className="eyebrow">A LITTLE MORE CONTRAST</span>
           <h2>
             Beautiful colors.
             <br />
@@ -46,7 +45,6 @@ export function ThemePreview({
   return (
     <section className="context-panel" aria-label="Palette in context">
       <div className="panel-intro">
-        <span className="eyebrow">FROM SWATCHES TO SOMETHING</span>
         <h2>See the possibilities.</h2>
         <p>
           A small identity, made entirely from your palette. Change the image

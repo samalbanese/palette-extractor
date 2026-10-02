@@ -324,7 +324,6 @@ export function PixelSpace({
   return (
     <section aria-labelledby="pixel-space-heading" className="algorithm-panel">
       <div className="panel-intro">
-        <span className="eyebrow">THE METHOD BEHIND THE MOOD</span>
         <h2 id="pixel-space-heading">
           A little color science.
           <br />

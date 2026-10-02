@@ -23,7 +23,6 @@ export function ContrastPanel({ palette }: { palette: RGB[] }) {
     <section className="contrast-panel" aria-label="Readable color pairs">
       <div className="contrast-heading">
         <div>
-          <span className="eyebrow">BEAUTIFUL IS ONLY THE BEGINNING</span>
           <h2>Make it readable.</h2>
           <p>
             Real contrast ratios between your colors, strongest first. Select a
