@@ -10,21 +10,25 @@ export const DEFAULT_BUDGETS = { firstLoad: 75 * 1024, stage: 15 * 1024 };
 const STAGE_SOURCE = "src/components/Stage.tsx";
 const WORKER_FILE = /^quantize\.worker-[\w-]+\.js$/;
 
+// A ">" inside a quoted value does not end the tag.
 function tagsOf(html, name) {
-  return [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, "gi"))].map(
-    (m) => m[0],
-  );
+  return [
+    ...html.matchAll(
+      new RegExp(`<${name}\\b(?:[^>"']|"[^"]*"|'[^']*')*>`, "gi"),
+    ),
+  ].map((m) => m[0]);
 }
 
-// HTML allows double, single or no quotes, and spaces around "=".
+// Walks the tag one attribute at a time, so text inside a quoted value is
+// never read as an attribute of its own. HTML allows double, single or no
+// quotes and spaces around "="; the first of duplicate attributes wins.
+const ATTRIBUTE =
+  /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 function attr(tag, name) {
-  const m = tag.match(
-    new RegExp(
-      `\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`,
-      "i",
-    ),
-  );
-  return m ? (m[1] ?? m[2] ?? m[3]) : undefined;
+  const body = tag.replace(/^<[^\s>\/]+/, "");
+  for (const m of body.matchAll(ATTRIBUTE))
+    if (m[1].toLowerCase() === name) return m[2] ?? m[3] ?? m[4] ?? "";
+  return undefined;
 }
 
 /** One spelling per file: "/assets/a.js" and "./assets/a.js" are "assets/a.js". */

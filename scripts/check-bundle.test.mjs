@@ -135,6 +135,28 @@ describe("checkBundle", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("ignores attribute-like text inside another attribute's quotes", () => {
+    const dir = makeDist({
+      html: entryHtml(
+        `<script data-note=" type=classic" type="module" src="/assets/extra-b.js"></script>` +
+          `<link title='a > b' rel="modulepreload" href="/assets/pre-c.js">`,
+      ),
+      manifest: entryManifest(),
+      files: {
+        "assets/index-a.js": 1 * KB,
+        "assets/extra-b.js": 8 * KB,
+        "assets/pre-c.js": 8 * KB,
+      },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(row(result, "first-load JS").files.sort()).toEqual([
+      "assets/extra-b.js",
+      "assets/index-a.js",
+      "assets/pre-c.js",
+      "assets/quantize.worker-abc.js",
+    ]);
+  });
+
   it("follows the imports of an entry referenced by a relative path", () => {
     const dir = makeDist({
       html:
