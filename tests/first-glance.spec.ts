@@ -70,3 +70,40 @@ test("a shared one-color palette still shows its selection", async ({
   await expect(page.locator(".swatch")).toHaveCount(1);
   await expectOneSelectedMatchingInspector(page);
 });
+
+test("the cube control is an action that matches what the cube is doing", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("tab", { name: "How it works" }).click();
+  await expect(
+    page.getByText("LIVE EXTRACTION TRACE", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Static view" })).toHaveCount(
+    0,
+  );
+
+  await page
+    .getByRole("button", { name: "Stop animation", exact: true })
+    .click();
+  await expect(page.getByText("STATIC VIEW", { exact: true })).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "Play animation", exact: true })
+    .click();
+  await expect(
+    page.getByText("LIVE EXTRACTION TRACE", { exact: true }),
+  ).toBeVisible();
+});
+
+test("with reduced motion the cube is static and offers no animation control", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("tab", { name: "How it works" }).click();
+  await expect(page.getByText("STATIC VIEW", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /animation/ })).toHaveCount(0);
+});

@@ -415,7 +415,7 @@ export function PixelSpace({
               {!reducedMotion && (
                 <>
                   <button onClick={() => setPaused((v) => !v)}>
-                    {paused ? "Play animation" : "Static view"}
+                    {paused ? "Play animation" : "Stop animation"}
                   </button>
                   <button
                     onClick={() => {
