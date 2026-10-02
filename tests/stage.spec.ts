@@ -28,6 +28,12 @@ test("pointer skip is immediate and a copy click retains its action", async ({
   expect(elapsed.elapsed).toBeLessThan(100);
   await page.getByRole("button", { name: "Try Forest floor" }).click();
   await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  // Swatches slide to their new slots first; a forced click aimed while the
+  // button is moving lands on whatever passes under that point.
+  await expect(page.locator(".swatch-grid")).toHaveAttribute(
+    "data-morph",
+    "idle",
+  );
   const button = page.locator(".swatch-info button").first();
   const color = await button.innerText();
   await page.evaluate(() =>
