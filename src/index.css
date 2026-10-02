@@ -1309,25 +1309,23 @@ select {
   font-size: 10px;
   color: #a7abad;
 }
-.code-heading > span:first-child {
+.code-heading > span:last-child {
+  white-space: nowrap;
+}
+.code-chips {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+  /* Ten colors on a narrow phone squeeze the chips, not the labels. */
+  min-width: 0;
 }
-.code-heading i {
+.code-chips i {
   display: block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #575958;
-}
-.code-heading i:first-child {
-  background: #aa786c;
-}
-.code-heading i:nth-child(2) {
-  background: #b7a276;
-}
-.code-heading i:nth-child(3) {
-  background: #7e9c8b;
+  width: 10px;
+  min-width: 3px;
+  height: 10px;
+  border-radius: 3px;
+  /* Keeps near-black colors visible against the dark header. */
+  box-shadow: inset 0 0 0 1px #ffffff1f;
 }
 .code-window pre {
   padding: 25px;

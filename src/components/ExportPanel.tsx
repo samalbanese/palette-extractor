@@ -1,4 +1,4 @@
-import { type RGB } from "../lib/color";
+import { type RGB, rgbToHex } from "../lib/color";
 import {
   EXPORT_LABELS,
   exportPalette,
@@ -79,10 +79,10 @@ export function ExportPanel({
       </div>
       <div className="code-window">
         <div className="code-heading">
-          <span>
-            <i />
-            <i />
-            <i />
+          <span className="code-chips" aria-hidden="true">
+            {palette.map((color, i) => (
+              <i key={i} style={{ background: rgbToHex(color) }} />
+            ))}
           </span>
           <code>palette.{extensions[format]}</code>
           <span>{EXPORT_LABELS[format]}</span>
