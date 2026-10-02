@@ -1525,34 +1525,6 @@ select {
   color: #b1b5b7;
   font-size: 13px;
 }
-.algorithm-stats {
-  display: flex;
-  gap: 27px;
-  margin-top: 23px;
-}
-.algorithm-stats strong {
-  font: 22px var(--font-mono);
-  color: #eae9e3;
-  display: block;
-}
-.algorithm-stats span {
-  font-size: 10px;
-  color: #969b9d;
-  display: block;
-  margin-top: 5px;
-}
-.algorithm-canvas {
-  position: relative;
-  border: 1px solid #3a3e41;
-  border-radius: 8px;
-  background: #1b1e20;
-  overflow: hidden;
-}
-.algorithm-canvas canvas {
-  width: 100%;
-  height: 360px;
-  display: block;
-}
 .cube-topline {
   position: absolute;
   inset: 16px 18px auto;
@@ -1901,17 +1873,8 @@ select {
     grid-row: 4;
     margin: 0;
   }
-  .algorithm-panel .panel-intro {
-    display: block;
-  }
-  .algorithm-panel .panel-intro > p {
-    max-width: 550px;
-  }
   .step-list {
     grid-template-columns: repeat(3, 1fr);
-  }
-  .algorithm-stats {
-    margin-top: 15px;
   }
   .contrast-panel .contrast-heading {
     align-items: start;
@@ -2282,15 +2245,6 @@ select {
   .step-list {
     grid-template-columns: 1fr;
   }
-  .algorithm-canvas canvas {
-    height: 310px;
-  }
-  .algorithm-stats strong {
-    font-size: 21px;
-  }
-  .algorithm-stats span {
-    font-size: 9px;
-  }
   .cube-topline {
     font-size: 8px;
     inset: 14px 13px auto;
@@ -2468,7 +2422,6 @@ select {
   .animation-controls button,
   .cube-topline,
   .cube-bottomline,
-  .algorithm-stats span,
   .export-select,
   .code-heading,
   .code-window pre,
@@ -2505,7 +2458,6 @@ select {
   .source-actions > span,
   .site-footer,
   .step-list li,
-  .algorithm-stats span,
   .contrast-legend,
   .contrast-legend span,
   .contrast-meta,
