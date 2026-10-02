@@ -546,6 +546,9 @@ code {
 .stage-surface {
   background: #1b1e20;
 }
+/* Until the stage has drawn a frame (no step yet), or if it never starts,
+   the photo underneath stays in view. */
+.stage-host:not([data-stage-step]) .stage-surface,
 .stage-host[data-stage-step="lift"] .stage-surface {
   background: transparent;
 }

@@ -249,6 +249,53 @@ test("the photo fades under the points from the first stage frame", async ({
   );
 });
 
+for (const outcome of ["slow", "failed"] as const) {
+  test(`the photo stays uncovered while a ${outcome} stage start has drawn nothing`, async ({
+    page,
+  }) => {
+    // The app decodes the photo before it loads the stage; only a decode
+    // asked for once the stage has mounted is the stage's own.
+    await page.addInitScript((outcome) => {
+      const original = HTMLImageElement.prototype.decode;
+      HTMLImageElement.prototype.decode = function (this: HTMLImageElement) {
+        if (
+          !document.querySelector(".stage-surface") ||
+          !this.matches(".source-frame > img")
+        )
+          return original.call(this);
+        document.body.dataset.stageDecode = outcome;
+        return outcome === "slow"
+          ? new Promise<void>(() => {})
+          : Promise.reject(new DOMException("held", "EncodingError"));
+      };
+    }, outcome);
+    await page.goto("/");
+    await expect(page.locator("body")).toHaveAttribute(
+      "data-stage-decode",
+      outcome,
+    );
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    const view = await page.locator(".source-frame").evaluate(async (frame) => {
+      const photo = frame.querySelector(":scope > img")!;
+      await Promise.all(photo.getAnimations().map((a) => a.finished));
+      const style = getComputedStyle(frame.querySelector(".stage-surface")!);
+      return {
+        step: frame.querySelector<HTMLElement>(".stage-host")!.dataset
+          .stageStep,
+        covered:
+          style.opacity !== "0" && style.backgroundColor !== "rgba(0, 0, 0, 0)",
+        photo: getComputedStyle(photo).opacity,
+      };
+    });
+    expect(view).toEqual({ step: undefined, covered: false, photo: "1" });
+  });
+}
+
 test("an intro hidden while it starts resumes when the tab returns", async ({
   page,
 }) => {
