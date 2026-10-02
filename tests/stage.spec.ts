@@ -44,21 +44,26 @@ test("touch skips within 100ms and selects both source views", async ({
   await page.evaluate(() => {
     window.addEventListener(
       "pointerdown",
-      () => {
-        const start = performance.now();
-        queueMicrotask(
-          () =>
-            (document.body.dataset.skipTime = String(
-              performance.now() - start,
-            )),
+      (event) => {
+        document.body.dataset.skipPhase =
+          document.querySelector<HTMLElement>(
+            ".stage-host",
+          )!.dataset.stagePhase;
+        document.body.dataset.skipTime = String(
+          performance.now() - event.timeStamp,
         );
       },
-      { once: true, capture: true },
+      { once: true },
     );
   });
   const box = await page.locator(".source-frame").boundingBox();
   await page.touchscreen.tap(box!.x + 30, box!.y + 30);
-  await expect(host(page)).toHaveAttribute("data-stage-phase", "done");
+  // Read by a listener added after the stage's own, so it sees the phase the
+  // tap left behind, not the one before it.
+  await expect(page.locator("body")).toHaveAttribute("data-skip-phase", /./);
+  expect(await page.locator("body").getAttribute("data-skip-phase")).toBe(
+    "done",
+  );
   expect(
     Number(await page.locator("body").getAttribute("data-skip-time")),
   ).toBeLessThan(100);
@@ -104,6 +109,102 @@ test("reduced motion draws once with stable pixels and no stage animations", asy
         }).length,
     ),
   ).toBe(0);
+});
+
+test("a skip before the flight leaves nothing moving once done is reported", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-started-at", /\d/);
+  const step = await page.evaluate(() => {
+    const stage = document.querySelector<HTMLElement>(".stage-host")!;
+    // Read in the same task the attribute is written, before any frame.
+    new MutationObserver(() => {
+      if (!stage.dataset.stageDoneAt) return;
+      document.body.dataset.pulsesAtDone = String(
+        document
+          .getAnimations()
+          .filter(
+            (a) =>
+              (a.effect as KeyframeEffect).pseudoElement === "::after" &&
+              a.playState === "running",
+          ).length,
+      );
+    }).observe(stage, { attributeFilter: ["data-stage-done-at"] });
+    const before = stage.dataset.stageStep;
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    return before;
+  });
+  expect(["lift", "settle", "split", "converge"]).toContain(step);
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-pulses-at-done",
+    "0",
+  );
+  // Nothing starts pulsing after the finish either.
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(
+      () =>
+        document
+          .getAnimations()
+          .filter(
+            (a) => (a.effect as KeyframeEffect).pseudoElement === "::after",
+          ).length,
+    ),
+  ).toBe(0);
+});
+
+test("same-photo changes keep the cloud on screen and pulse nothing", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await settled(page);
+  await page.evaluate(() => {
+    const win = window as unknown as { __pulses: number; __blank: number };
+    win.__pulses = 0;
+    win.__blank = 0;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      if (typeof options === "object" && options.pseudoElement === "::after")
+        win.__pulses++;
+      return animate.call(this, keyframes, options);
+    };
+    // Whenever a points canvas leaves, what remains must already show points.
+    const surface = document.querySelector(".stage-surface")!;
+    new MutationObserver((records) => {
+      if (!records.some((r) => r.removedNodes.length)) return;
+      const shown = [...surface.querySelectorAll("canvas")].some((canvas) => {
+        const copy = document.createElement("canvas");
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        const ctx = copy.getContext("2d")!;
+        ctx.drawImage(canvas, 0, 0);
+        const { data } = ctx.getImageData(0, 0, copy.width, copy.height);
+        for (let i = 3; i < data.length; i += 4) if (data[i]) return true;
+        return false;
+      });
+      if (!shown) win.__blank++;
+    }).observe(surface, { childList: true });
+  });
+  const perceptual = page.getByRole("radio", {
+    name: "Perceptual",
+    exact: true,
+  });
+  const rgb = page.getByRole("radio", { name: "RGB", exact: true });
+  for (let i = 0; i < 4; i++) {
+    await (i % 2 ? rgb : perceptual).check();
+    await ready(page);
+    await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
+  }
+  await page.getByRole("button", { name: "More colors" }).click();
+  await ready(page);
+  await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
+  const counts = await page.evaluate(() => {
+    const win = window as unknown as { __pulses: number; __blank: number };
+    return { pulses: win.__pulses, blank: win.__blank };
+  });
+  expect(counts).toEqual({ pulses: 0, blank: 0 });
+  expect(await page.locator(".stage-points").count()).toBe(1);
 });
 
 test("changing motion preference during the intro finishes it", async ({

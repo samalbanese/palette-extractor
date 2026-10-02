@@ -97,6 +97,9 @@ export default function Stage({
       if (done) return;
       done = true;
       elapsed = length;
+      // Ending before the flight still lands every color; launching here lets
+      // a skip cut those pulses short with the rest.
+      if (!launched) launch(0);
       if (cut) flights?.finishAll();
       else flights?.landAll();
       parent.dataset.stagePhase = "done";
@@ -107,6 +110,30 @@ export default function Stage({
             parent.dataset.stageDoneAt = String(Math.round(performance.now()));
         });
       });
+    };
+    // Sends each color from the centre of its group to its swatch. Once the
+    // intro is over, or with reduced motion, nothing flies and swatches only
+    // pulse.
+    const launch = (angle: number) => {
+      launched = true;
+      const origins = flyerOrigins(
+        data.centroids,
+        data.counts,
+        swatchForGroup(result.samples.groupColors, result.swatches),
+        result.swatches.length,
+      );
+      const rect = canvas.getBoundingClientRect();
+      flights = launchFlyers(
+        portal.current!,
+        origins.map((p) => {
+          if (!p || done || reduced) return null;
+          const [x, y] = project(p, angle, width, height);
+          return { x: rect.left + x, y: rect.top + y };
+        }),
+        result.swatches,
+        Math.max(1, length * 0.9 - elapsed),
+        reduced,
+      );
     };
     const draw = () => {
       if (!initialized) return;
@@ -141,27 +168,8 @@ export default function Stage({
       if (
         !launched &&
         (state.phase === "flight" || state.phase === "release" || state.done)
-      ) {
-        launched = true;
-        const origins = flyerOrigins(
-          data.centroids,
-          data.counts,
-          swatchForGroup(result.samples.groupColors, result.swatches),
-          result.swatches.length,
-        );
-        const rect = canvas.getBoundingClientRect();
-        flights = launchFlyers(
-          portal.current!,
-          origins.map((p) => {
-            if (!p || done || reduced) return null;
-            const [x, y] = project(p, state.angle, width, height);
-            return { x: rect.left + x, y: rect.top + y };
-          }),
-          result.swatches,
-          Math.max(1, length * 0.9 - elapsed),
-          reduced,
-        );
-      }
+      )
+        launch(state.angle);
       if (state.release > 0) flights?.pulseRemaining();
       if (done) flights?.landAll();
     };
@@ -226,9 +234,24 @@ export default function Stage({
         "aria-label",
         `${result.image.name} as a cloud of its colors in ${result.colorSpace === "oklab" ? "Perceptual" : "RGB"} space`,
       );
-      container.replaceChildren(next);
+      // The previous canvas keeps showing its last frame until this one draws.
+      for (const old of container.children)
+        old.setAttribute("aria-hidden", "true");
+      container.append(next);
       canvas = next;
       return next;
+    };
+    // Removes the canvases the current one replaced and releases their
+    // contexts, so repeated changes never pile up live WebGL contexts.
+    const dropStale = () => {
+      for (const old of [...container.children]) {
+        if (old === canvas) continue;
+        (old as HTMLCanvasElement)
+          .getContext("webgl2")
+          ?.getExtension("WEBGL_lose_context")
+          ?.loseContext();
+        old.remove();
+      }
     };
     const contextLost = async () => {
       stop();
@@ -242,6 +265,7 @@ export default function Stage({
       mode("2d");
       initialized = true;
       refresh();
+      dropStale();
     };
     const start = async () => {
       try {
@@ -283,8 +307,11 @@ export default function Stage({
       delete parent.dataset.stageStartedAt;
       delete parent.dataset.stageDoneAt;
       parent.dataset.stagePhase = "intro";
+      // A change to the same photo has no new colors to deliver.
+      if (!replay) launched = true;
       if (reduced || !replay || viewRef.current === "photo") markDone(true);
       refresh();
+      dropStale();
     };
     const preference = () => {
       reduced = media.matches;

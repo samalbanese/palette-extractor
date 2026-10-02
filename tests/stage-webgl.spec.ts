@@ -1,5 +1,52 @@
 import { test, expect } from "@playwright/test";
 import { capability, pointsCanvas, host } from "./stage-checks";
+import { ready, stageDone } from "./helpers";
+
+test("same-photo changes release the contexts they replace", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const contexts: WebGL2RenderingContext[] = [];
+    (window as unknown as { __contexts: typeof contexts }).__contexts =
+      contexts;
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      ...args: unknown[]
+    ) {
+      const context = (getContext as (...a: unknown[]) => unknown).apply(
+        this,
+        args,
+      );
+      if (
+        args[0] === "webgl2" &&
+        context &&
+        !contexts.includes(context as WebGL2RenderingContext)
+      )
+        contexts.push(context as WebGL2RenderingContext);
+      return context;
+    } as typeof getContext;
+  });
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-mode", "webgl");
+  await stageDone(page);
+  for (const name of ["Perceptual", "RGB", "Perceptual", "RGB"]) {
+    await page.getByRole("radio", { name, exact: true }).check();
+    await ready(page);
+    await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
+  }
+  const counts = await page.evaluate(() => {
+    const contexts = (
+      window as unknown as { __contexts: WebGL2RenderingContext[] }
+    ).__contexts;
+    return {
+      created: contexts.length,
+      live: contexts.filter((c) => !c.isContextLost()).length,
+    };
+  });
+  expect(counts.created).toBeGreaterThanOrEqual(5);
+  expect(counts.live).toBe(1);
+});
 
 test("context loss replaces WebGL with a fresh painted canvas", async ({
   page,
