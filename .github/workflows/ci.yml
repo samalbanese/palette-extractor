@@ -70,3 +70,39 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  performance:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [mobile, desktop]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Bundle size budget
+        if: matrix.profile == 'mobile'
+        run: npm run check:bundle
+
+      - name: Lighthouse (${{ matrix.profile }})
+        run: npx lhci autorun --config=${{ matrix.profile == 'desktop' && 'lighthouserc.desktop.json' || 'lighthouserc.json' }}
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-${{ matrix.profile }}
+          path: .lighthouseci/${{ matrix.profile }}
+          if-no-files-found: ignore
+          retention-days: 7
