@@ -769,11 +769,15 @@ code {
   padding: 0;
   border: 0;
 }
-/* Dims gently while new colors are found; the result snaps back to full
-   strength so fresh swatches never sit behind a fading layer. */
-.palette-fieldset.is-busy {
-  opacity: 0.5;
-  transition: opacity 0.2s;
+/* The palette stays at full strength while new colors are found, so a
+   change melts from what was on screen. Busy shows through the frame's badge
+   and aria-busy; the controls the busy fieldset disables keep their look. */
+.palette-fieldset.is-busy button:not([disabled]) {
+  opacity: 1;
+  cursor: progress;
+}
+.palette-fieldset.is-busy .lock-button:not([disabled], .is-locked) {
+  opacity: 0.9;
 }
 .swatch-grid {
   display: grid;
@@ -783,6 +787,8 @@ code {
 }
 .swatch {
   min-width: 0;
+}
+.swatch.is-entering {
   animation: swatch-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--delay);
 }
