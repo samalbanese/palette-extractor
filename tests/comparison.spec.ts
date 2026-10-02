@@ -119,11 +119,25 @@ for (const width of [390, 580, 581, 699, 700, 768, 850, 851, 1440])
         gridTop: box(".swatch-grid").top,
         titleLine: box(".palette-title h2").height,
         comparisonLine: box(".color-comparison").height,
+        // Centers of the title line and of every header control.
+        paletteCenters: [".palette-title h2", ".value-switch"].map((s) => {
+          const r = box(`.palette-panel > .section-label ${s}`);
+          return r.top + r.height / 2;
+        }),
+        sourceTitleCenter: (() => {
+          const r = box(".source-panel > .section-label > h2");
+          return r.top + r.height / 2;
+        })(),
       };
     });
     expect(layout.titleLine).toBe(23);
     expect(layout.comparisonLine).toBe(18);
     expect(layout.paletteHeading).toBe(41);
+    // The palette's controls sit on its title line, not midway down the row
+    // that also holds the comparison line.
+    expect(
+      Math.abs(layout.paletteCenters[0] - layout.paletteCenters[1]),
+    ).toBeLessThanOrEqual(1);
     if (width < 700) {
       expect(layout.palette.top).toBeGreaterThan(layout.source.bottom);
     } else {
@@ -132,6 +146,10 @@ for (const width of [390, 580, 581, 699, 700, 768, 850, 851, 1440])
       expect(Math.abs(layout.frameTop - layout.gridTop)).toBeLessThanOrEqual(
         0.5,
       );
+      // Side by side, the two section titles share one line.
+      expect(
+        Math.abs(layout.sourceTitleCenter - layout.paletteCenters[0]),
+      ).toBeLessThanOrEqual(0.5);
     }
   });
 

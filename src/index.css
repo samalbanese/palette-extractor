@@ -526,6 +526,21 @@ code {
   flex-shrink: 0;
   white-space: nowrap;
 }
+/* Both header rows read as one line: the titles sit on the row's top line
+   (the palette title's second line holds the color space comparison), and
+   each 32 to 33 px control is centered on that 23 px line. The shift is
+   visual only, so the rows keep their height. */
+.source-panel > .section-label,
+.palette-panel > .section-label {
+  align-items: flex-start;
+}
+.source-panel > .section-label > h2 {
+  height: 23px;
+}
+.source-panel > .section-label > :not(h2),
+.palette-panel > .section-label > .value-switch {
+  translate: 0 -4.5px;
+}
 /* Sits beside Replace rather than midway along the row. */
 .source-panel > .section-label > .colorspace-switch {
   margin-left: auto;
