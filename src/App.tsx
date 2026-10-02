@@ -3,6 +3,7 @@ import sunset from "./assets/sample.svg";
 import { type ValueKind } from "./components/Swatch";
 import { SwatchGrid, usePresentation } from "./components/SwatchGrid";
 import { ThemePreview } from "./components/ThemePreview";
+import { Atmosphere } from "./components/Atmosphere";
 import { Icon } from "./components/Icon";
 import {
   type SortMode,
@@ -382,6 +383,7 @@ export default function App() {
           </div>
         )}
         <div className="workspace" id="workspace" aria-busy={busy}>
+          <Atmosphere palette={palette.detail.colors} />
           <section className="source-panel" aria-labelledby="source-heading">
             <div className="section-label">
               <h2 id="source-heading">
