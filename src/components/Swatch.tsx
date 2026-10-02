@@ -62,7 +62,7 @@ export function Swatch({
         } as CSSProperties
       }
     >
-      <div className="swatch-color">
+      <div className="swatch-color" data-swatch-index={index}>
         <button
           className="swatch-select"
           onClick={onSelect}
