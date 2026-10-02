@@ -13,6 +13,15 @@ import { introLength, introState, SHORT_INTRO_MS } from "../stage/timeline";
 import { createQualityMonitor } from "../stage/quality";
 import { launchFlyers } from "../stage/flyers";
 import { yieldTask, type CloudData, type Renderer } from "../stage/data";
+import {
+  claimSlots,
+  dropClaim,
+  fillSlot,
+  fillSlots,
+  session,
+  slotsHeld,
+  stageUnavailable,
+} from "../stage/handoff";
 
 export interface StageResult {
   image: Source;
@@ -22,8 +31,6 @@ export interface StageResult {
   swatches: RGB[];
   populations: number[];
 }
-let sessionView: "photo" | "cloud" = "cloud";
-
 export default function Stage({
   result,
   host,
@@ -40,7 +47,7 @@ export default function Stage({
   const previous = useRef<Source | null>(null);
   const generation = useRef(0);
   const controls = useRef({ refresh: () => {}, skip: () => {} });
-  const [view, setView] = useState(sessionView);
+  const [view, setView] = useState(session.view);
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -71,6 +78,12 @@ export default function Stage({
       done = false,
       launched = false;
     let started = false;
+    // Set once the palette's deadline passes; the next frame ends the intro,
+    // so a paused or slow intro never sends chips to swatches already shown.
+    let overdue = false;
+    const deadline = () => {
+      overdue = true;
+    };
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = media.matches;
     const quality = createQualityMonitor();
@@ -132,10 +145,14 @@ export default function Stage({
         result.swatches,
         Math.max(1, length * 0.9 - elapsed),
         reduced,
+        (target) => {
+          if (current()) fillSlot(target.closest<HTMLElement>(".swatch"));
+        },
       );
     };
     const draw = () => {
       if (!initialized) return;
+      if (overdue && !done) markDone(true);
       const state = {
         ...introState(done ? length : elapsed, length),
         angle: -Math.PI / 4 + (reduced ? 0 : (rotation * Math.PI * 2) / 24000),
@@ -222,6 +239,8 @@ export default function Stage({
       }
     };
     const skip = () => {
+      // Whatever ends the intro early shows the whole palette at once.
+      fillSlots();
       if (initialized && !done) {
         markDone(true);
         refresh();
@@ -285,6 +304,7 @@ export default function Stage({
         // This photo cannot become points. Show it as it is, with nothing
         // left over from the cloud it replaces.
         if (!current()) return;
+        fillSlots();
         dropStale();
         delete parent.dataset.stageStep;
         showPhotoOnly();
@@ -323,13 +343,25 @@ export default function Stage({
       // The host outlives each intro; drop the previous one's timings.
       delete parent.dataset.stageStartedAt;
       delete parent.dataset.stageDoneAt;
+      delete parent.dataset.stageEndsAt;
       parent.dataset.stagePhase = "intro";
       // The photo's own reveal animation would override the fade below the
       // points, so it ends as the stage takes over.
       photo.getAnimations().forEach((animation) => animation.finish());
       // A change to the same photo has no new colors to deliver.
       if (!replay) launched = true;
-      if (reduced || !replay || viewRef.current === "photo") markDone(true);
+      // Colors fly only into swatches still waiting for them; input or a
+      // deadline that came first already showed the palette.
+      if (reduced || !replay || viewRef.current === "photo" || !slotsHeld())
+        markDone(true);
+      else {
+        // However slowly frames come, the palette shows soon after the
+        // planned end, with nothing left in flight.
+        claimSlots(length + 600, deadline);
+        parent.dataset.stageEndsAt = String(
+          Math.round(performance.now() + length),
+        );
+      }
       refresh();
       dropStale();
     };
@@ -357,9 +389,13 @@ export default function Stage({
     window.addEventListener("keydown", skip);
     window.addEventListener("scroll", finishFlight, true);
     document.addEventListener("visibilitychange", visibility);
-    void start();
+    void start().catch(() => {
+      // Neither renderer could start here, so no stage will deliver colors.
+      if (current()) stageUnavailable();
+    });
     return () => {
       disposed = true;
+      dropClaim(deadline);
       stop();
       flights?.finishAll();
       flights?.cancel();
@@ -412,7 +448,7 @@ export default function Stage({
             aria-pressed={view === value}
             onClick={() => {
               controls.current.skip();
-              sessionView = value;
+              session.view = value;
               viewRef.current = value;
               setView(value);
               controls.current.refresh();

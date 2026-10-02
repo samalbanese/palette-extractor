@@ -18,15 +18,29 @@ for (let run = 1; run <= 3; run++)
     });
     // Counts chips as they enter the page, so an intro that jumps straight
     // to its end cannot pass on timing alone.
+    // Also notes when the last swatch waiting for its color is filled.
     await page.addInitScript(() => {
-      const win = window as unknown as { __flyers: number };
+      const win = window as unknown as {
+        __flyers: number;
+        __slots: boolean;
+        __filledAt: number | null;
+      };
       win.__flyers = 0;
+      win.__slots = false;
+      win.__filledAt = null;
       new MutationObserver((records) => {
         for (const record of records)
           for (const node of record.addedNodes)
             if (node instanceof HTMLElement && node.matches(".stage-flyer"))
               win.__flyers++;
-      }).observe(document, { childList: true, subtree: true });
+        const waiting = !!document.querySelector(".swatch[data-slot]");
+        if (waiting) win.__slots = true;
+        else if (win.__slots) win.__filledAt ??= performance.now();
+      }).observe(document, {
+        childList: true,
+        subtree: true,
+        attributeFilter: ["data-slot"],
+      });
     });
     await page.goto("/");
     await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
@@ -41,6 +55,17 @@ for (let run = 1; run <= 3; run++)
       contentType: "text/plain",
     });
     expect(doneAt).toBeLessThanOrEqual(3500);
+    const slots = await page.evaluate(() => {
+      const win = window as unknown as {
+        __slots: boolean;
+        __filledAt: number | null;
+      };
+      return { seen: win.__slots, filledAt: win.__filledAt };
+    });
+    console.log(`THROTTLED_FILLED_AT run=${run} ms=${slots.filledAt}`);
+    expect(slots.seen).toBe(true);
+    expect(slots.filledAt).not.toBeNull();
+    expect(slots.filledAt!).toBeLessThanOrEqual(3400);
     // The shortest intro is 1,200 ms; one frame of slack.
     expect(startedAt).toBeGreaterThan(0);
     expect(doneAt - startedAt).toBeGreaterThanOrEqual(1150);
