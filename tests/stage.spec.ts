@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { ready, stageDone, settled } from "./helpers";
 import {
   accessible,
+  CURRENT_POINTS,
   afterStageChange,
   countFrames,
   host,
@@ -56,11 +57,12 @@ test("touch skips within 100ms and selects both source views", async ({
   browser,
 }) => {
   const context = await browser.newContext({
+    baseURL: test.info().project.use.baseURL,
     hasTouch: true,
     viewport: { width: 390, height: 844 },
   });
   const page = await context.newPage();
-  await page.goto("http://127.0.0.1:5173/");
+  await page.goto("/");
   await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
   await page.evaluate(() => {
     window.addEventListener(
@@ -355,7 +357,7 @@ test("a new sample uses the short intro and preserves its palette", async ({
   ).toEqual(["#17251e", "#233531", "#29403a", "#30514a", "#337265", "#2c3731"]);
   await page.getByRole("radio", { name: "Perceptual", exact: true }).check();
   await ready(page);
-  await expect(page.locator(".stage-points")).toHaveAttribute(
+  await expect(page.locator(CURRENT_POINTS)).toHaveAttribute(
     "aria-label",
     /Forest floor.*Perceptual space/,
   );
@@ -375,13 +377,13 @@ test("a delayed sample cannot replace the last committed stage", async ({
   await stageDone(page);
   await page.getByRole("button", { name: "Try Forest floor" }).click();
   await page.getByRole("button", { name: "Try Coastal color" }).click();
-  await expect(page.locator(".stage-points")).toHaveAttribute(
+  await expect(page.locator(CURRENT_POINTS)).toHaveAttribute(
     "aria-label",
     /Coastal color/,
   );
   await page.waitForTimeout(3500);
   expect(held).toBeGreaterThan(0);
-  await expect(page.locator(".stage-points")).toHaveAttribute(
+  await expect(page.locator(CURRENT_POINTS)).toHaveAttribute(
     "aria-label",
     /Coastal color/,
   );

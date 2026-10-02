@@ -1,11 +1,20 @@
 import { defineConfig } from "@playwright/test";
+
+// Tests get their own ports and never reuse a running server, so a dev server
+// left open (or one from another checkout) can never stand in for this one.
+// Outside CI, which builds just before the tests, the production preview is
+// rebuilt first so it always serves the current source.
+const DEV = "http://127.0.0.1:5183";
+const PREVIEW = "http://127.0.0.1:4183";
+const preview = "npm run preview -- --host 127.0.0.1 --port 4183 --strictPort";
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   workers: 2,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: DEV,
     viewport: { width: 1440, height: 1000 },
     launchOptions: {
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
@@ -18,7 +27,7 @@ export default defineConfig({
     {
       name: "stage-prod",
       testMatch: "stage-prod.spec.ts",
-      use: { baseURL: "http://127.0.0.1:4173" },
+      use: { baseURL: PREVIEW },
     },
     {
       name: "stage-webgl",
@@ -47,14 +56,15 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "npm run dev -- --host 127.0.0.1",
-      url: "http://127.0.0.1:5173",
-      reuseExistingServer: !process.env.CI,
+      command: "npm run dev -- --host 127.0.0.1 --port 5183 --strictPort",
+      url: DEV,
+      reuseExistingServer: false,
     },
     {
-      command: "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
-      url: "http://127.0.0.1:4173",
-      reuseExistingServer: !process.env.CI,
+      command: process.env.CI ? preview : `npm run build && ${preview}`,
+      url: PREVIEW,
+      reuseExistingServer: false,
+      timeout: 180_000,
     },
   ],
 });

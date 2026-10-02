@@ -7,12 +7,18 @@ export const host = (page: Page) => page.locator(".stage-host");
     a new one in its place and that stage finished. The host keeps the last
     finish time until the new stage starts, so waiting on it alone can pass
     on the previous one. */
+/**
+ * The canvas on show. A replaced canvas stays, hidden from assistive tech,
+ * until the new one draws, so for a moment two exist.
+ */
+export const CURRENT_POINTS = ".stage-points:not([aria-hidden])";
+
 export async function afterStageChange(
   page: Page,
   change: () => Promise<void>,
 ) {
   await page
-    .locator(".stage-points")
+    .locator(CURRENT_POINTS)
     .evaluate((canvas) => canvas.setAttribute("data-replaced", ""));
   await change();
   await expect
@@ -44,7 +50,7 @@ export async function capability(page: Page, expected: boolean) {
 
 /** Copies the points canvas and reports what it shows, across its whole area. */
 export async function pointsCanvas(page: Page) {
-  return page.locator(".stage-points").evaluate((canvas: HTMLCanvasElement) => {
+  return page.locator(CURRENT_POINTS).evaluate((canvas: HTMLCanvasElement) => {
     const copy = document.createElement("canvas");
     copy.width = canvas.width;
     copy.height = canvas.height;
