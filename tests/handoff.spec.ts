@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { stageDone } from "./helpers";
+import { settled, stageDone } from "./helpers";
 import { accessible, host } from "./stage-checks";
 
 /**
@@ -341,3 +341,98 @@ test("slots are accessible", async ({ page }) => {
   );
   await accessible(page);
 });
+
+/**
+ * Samples every frame of a reorder and reports each time a swatch's visible
+ * label (opacity above 0.1) overlaps another swatch's color block or labels.
+ */
+async function labelCollisions(page: Page, change: () => Promise<void>) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __hits: string[]; __frames: number };
+    w.__hits = [];
+    w.__frames = 0;
+    const LABELS =
+      ".swatch-select > span, .swatch-info > span, .swatch-info code";
+    const visible = (el: Element) => {
+      let opacity = 1;
+      for (let node: Element | null = el; node; node = node.parentElement)
+        opacity *= Number(getComputedStyle(node).opacity);
+      return opacity > 0.1;
+    };
+    const overlap = (a: DOMRect, b: DOMRect) =>
+      a.left < b.right - 0.5 &&
+      b.left < a.right - 0.5 &&
+      a.top < b.bottom - 0.5 &&
+      b.top < a.bottom - 0.5;
+    const tick = () => {
+      const grid = document.querySelector<HTMLElement>(".swatch-grid")!;
+      if (grid.dataset.morph !== "running") return;
+      w.__frames++;
+      const swatches = [...document.querySelectorAll(".swatch")].map(
+        (swatch) => ({
+          id: (swatch as HTMLElement).dataset.swatchId,
+          block: swatch.querySelector(".swatch-color")!.getBoundingClientRect(),
+          labels: [...swatch.querySelectorAll(LABELS)]
+            .filter((label) => label.textContent!.trim())
+            .map((label) => ({
+              text: label.textContent!.trim(),
+              box: label.getBoundingClientRect(),
+              shown: visible(label),
+            })),
+        }),
+      );
+      for (const a of swatches)
+        for (const label of a.labels) {
+          if (!label.shown) continue;
+          for (const b of swatches) {
+            if (a === b) continue;
+            if (overlap(label.box, b.block))
+              w.__hits.push(`${label.text} over ${b.id}'s color`);
+            for (const other of b.labels)
+              if (other.shown && overlap(label.box, other.box))
+                w.__hits.push(`${label.text} over ${other.text}`);
+          }
+        }
+      requestAnimationFrame(tick);
+    };
+    new MutationObserver(() => requestAnimationFrame(tick)).observe(
+      document.querySelector(".swatch-grid")!,
+      { attributeFilter: ["data-morph-started-at"] },
+    );
+  });
+  await change();
+  await expect(page.locator(".swatch-grid")).toHaveAttribute(
+    "data-morph",
+    "running",
+  );
+  await expect(page.locator(".swatch-grid")).toHaveAttribute(
+    "data-morph",
+    "idle",
+  );
+  return page.evaluate(() => {
+    const w = window as unknown as { __hits: string[]; __frames: number };
+    return { hits: [...new Set(w.__hits)], frames: w.__frames };
+  });
+}
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+])
+  test(`mid-reorder labels never print over another swatch at ${viewport.width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await settled(page);
+    for (const sort of ["hue", "luminance", "original"]) {
+      const { hits, frames } = await labelCollisions(page, () =>
+        page
+          .getByLabel("Sort palette", { exact: true })
+          .selectOption(sort)
+          .then(() => undefined),
+      );
+      expect(frames, sort).toBeGreaterThan(5);
+      expect(hits, sort).toEqual([]);
+    }
+  });
