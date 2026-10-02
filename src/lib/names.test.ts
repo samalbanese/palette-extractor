@@ -40,8 +40,7 @@ describe("nearestColorName", () => {
 });
 
 describe("paletteColorNames", () => {
-  // The Forest floor sample at six colors, where two pairs share a nearest
-  // name (Charcoal and Pine).
+  // The Forest floor sample at six colors: six close, dark greens.
   const forest = [
     "#17251e",
     "#233531",
@@ -78,13 +77,31 @@ describe("paletteColorNames", () => {
   });
 
   it("gives a repeated name to the closest color and the next unused name to the other", () => {
-    const names = paletteColorNames(forest);
+    // Two greens that are both nearest to Pine (#244d3d); the first is closer.
+    const pair = ["#254e3e", "#2a5242"].map(fromHex);
+    expect(pair.map(nearestColorName)).toEqual(["Pine", "Pine"]);
+    const names = paletteColorNames(pair);
+    expect(names[0]).toBe("Pine");
+    expect(names[1]).not.toBe("Pine");
     for (const [index, name] of names.entries()) {
-      const nearest = nearestColorName(forest[index]);
+      const nearest = nearestColorName(pair[index]);
       if (name === nearest) continue;
       // Someone closer took the nearest name.
       expect(names).toContain(nearest);
     }
+  });
+
+  it("names dark forest greens as greens, not blues", () => {
+    const names = paletteColorNames(forest);
+    expect(names.filter((name) => /navy|blue|denim/i.test(name))).toEqual([]);
+    expect(names).toEqual([
+      "Black Forest",
+      "Evergreen",
+      "Pine",
+      "Hunter Green",
+      "Spruce",
+      "Graphite Green",
+    ]);
   });
 
   it("names each color the same way whatever order the palette is in", () => {
