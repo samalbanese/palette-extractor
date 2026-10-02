@@ -60,8 +60,14 @@ it("holds every point, and so every centroid, in fitted coordinates", () => {
 });
 
 it("uses a fit it is given, so a subset lines up with the whole set", () => {
-  const fit = { center: [10, 20, 30] as Vec3, zoom: 0.5 };
+  const fit = {
+    center: [10, 20, 30] as Vec3,
+    reachX: 100,
+    reachY: 80,
+    boxX: 110,
+    boxY: 90,
+  };
   const data = prepare(samples, "rgb", fit);
   expect(data.fit).toBe(fit);
-  expectNear(data.cube.subarray(0, 3), [-68.75, -73.75, -78.75]);
+  expectNear(data.cube.subarray(0, 3), [-137.5, -147.5, -157.5]);
 });

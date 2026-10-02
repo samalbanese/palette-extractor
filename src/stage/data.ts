@@ -33,9 +33,10 @@ export function sampleCube(samples: StageSamples, space: ColorSpace) {
 }
 
 /**
- * Everything a renderer draws from, in view units: the samples' points and
- * group centroids, fitted to the frame. A subset passes the fit of the set
- * it came from, so both draw at the same place and scale.
+ * Everything a renderer draws from: the samples' points and group
+ * centroids, relative to the fit's center, and the fit itself. A subset
+ * passes the fit of the set it came from, so both draw at the same place
+ * and scale.
  */
 export function prepare(
   samples: StageSamples,

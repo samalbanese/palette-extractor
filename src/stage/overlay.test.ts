@@ -69,7 +69,7 @@ it("draws box corners where the points of those colors are drawn", () => {
         j % 3 === 0 && corner.every((v, k) => samples.colors[j + k] === v),
     );
     const point = Array.from(data.cube.subarray(i, i + 3)) as Vec3;
-    const [x, y] = project(point, state.angle, 640, 360);
+    const [x, y] = project(point, state.angle, 640, 360, data.fit);
     expect(
       visits.some(([vx, vy]) => Math.hypot(vx - x, vy - y) < 1e-3),
       `corner ${corner}`,

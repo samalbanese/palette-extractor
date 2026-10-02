@@ -75,7 +75,7 @@ export function stepEdges(
   const edges: [number, number, number, number][] = [];
   for (const { bounds } of step) {
     const corners = boxCorners(bounds, fit).map((p) =>
-      project(p, angle, width, height),
+      project(p, angle, width, height, fit),
     );
     corners.forEach((p, i) => {
       for (let k = 0; k < 3; k++)
@@ -101,6 +101,7 @@ export function finalMarkers(
       angle,
       width,
       height,
+      fit,
     );
     // Marker size tracks how much of the image the color covers.
     const radius = 4.5 + 7 * Math.sqrt(total ? population / total : 0);

@@ -126,7 +126,7 @@ export default function Stage({
         portal.current!,
         origins.map((p) => {
           if (!p || done || reduced) return null;
-          const [x, y] = project(p, angle, width, height);
+          const [x, y] = project(p, angle, width, height, data.fit);
           return { x: rect.left + x, y: rect.top + y };
         }),
         result.swatches,

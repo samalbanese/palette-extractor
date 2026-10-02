@@ -70,7 +70,13 @@ const box = (
   population = 1,
 ) => ({ bounds: { min, max }, color, population });
 
-const fit = { center: [-20, 15, 5] as Vec3, zoom: 1.5 };
+const fit = {
+  center: [-20, 15, 5] as Vec3,
+  reachX: 100,
+  reachY: 80,
+  boxX: 110,
+  boxY: 90,
+};
 
 describe("stepEdges", () => {
   it("projects the twelve edges of each box from its fitted corners", () => {
@@ -78,7 +84,7 @@ describe("stepEdges", () => {
     const edges = stepEdges(step, fit, 0.7, 400, 300);
     expect(edges).toHaveLength(12);
     const corner = (x: number, y: number, z: number) =>
-      project(fitPoint(colorPoint([x, y, z], "rgb"), fit), 0.7, 400, 300);
+      project(fitPoint(colorPoint([x, y, z], "rgb"), fit), 0.7, 400, 300, fit);
     // The edge along the first axis from the lowest corner.
     expect(edges).toContainEqual([
       ...corner(0, 10, 20),
@@ -111,6 +117,7 @@ describe("stepEdges", () => {
         1.2,
         640,
         360,
+        data.fit,
       );
       const [x1, y1] = stepEdges(step, data.fit, 1.2, 640, 360)[0];
       expect(x1).toBeCloseTo(x, 3);
@@ -134,6 +141,7 @@ describe("finalMarkers", () => {
       0.3,
       400,
       300,
+      fit,
     );
     expect(first).toMatchObject({ x, y, color: red });
   });
