@@ -108,7 +108,9 @@ export default function App() {
   } = palette;
   const { copied, notice } = copyFeedback;
 
+  // The inspector falls back to the first color; the swatches must agree.
   const selected = colors.find((c) => rgbToHex(c) === selectedHex) ?? colors[0];
+  const selectedKey = selected ? rgbToHex(selected) : null;
   const showWeights = !!loaded && locked.length === 0;
 
   const copy = (text: string, key: string) => void copyFeedback.copy(text, key);
@@ -363,7 +365,7 @@ export default function App() {
                     valueKind={valueKind}
                     onCopy={(text, key) => copy(text, key)}
                     copied={copied}
-                    selected={selectedHex === rgbToHex(entry.color)}
+                    selected={selectedKey === rgbToHex(entry.color)}
                     onSelect={() => setSelectedHex(rgbToHex(entry.color))}
                     showWeight={showWeights}
                     canLock={!!source}

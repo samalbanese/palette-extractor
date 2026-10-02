@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ready } from "./helpers";
 
 test("the identity preview and the contrast tab show the same ratio for the same pair", async ({
@@ -17,4 +17,56 @@ test("the identity preview and the contrast tab show the same ratio for the same
   const panel = sample.match(/(\d+\.\d{2}):1/)?.[1];
   expect(preview).toBeTruthy();
   expect(panel).toBe(preview);
+});
+
+async function expectOneSelectedMatchingInspector(page: Page) {
+  await expect(page.locator(".swatch.selected")).toHaveCount(1);
+  await expect(page.locator('.swatch-select[aria-pressed="true"]')).toHaveCount(
+    1,
+  );
+  const label = await page
+    .locator(".swatch.selected .swatch-select")
+    .getAttribute("aria-label");
+  const hex = label!.split(", ").pop()!;
+  await expect(page.locator(".inspector button").first()).toHaveAttribute(
+    "aria-label",
+    `Copy ${hex} from inspector`,
+  );
+}
+
+test("on load exactly one swatch is selected and it is the inspector's color", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await expectOneSelectedMatchingInspector(page);
+
+  await page.getByLabel("Sort palette", { exact: true }).selectOption("hue");
+  await expectOneSelectedMatchingInspector(page);
+});
+
+test("the selection survives the selected color going away", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.locator(".swatch-select").last().click();
+  await expectOneSelectedMatchingInspector(page);
+
+  await page.getByRole("button", { name: "Fewer colors", exact: true }).click();
+  await ready(page);
+  await expectOneSelectedMatchingInspector(page);
+
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  await ready(page);
+  await expectOneSelectedMatchingInspector(page);
+});
+
+test("a shared one-color palette still shows its selection", async ({
+  page,
+}) => {
+  await page.goto("/#p=ee5533");
+  await ready(page);
+  await expect(page.locator(".swatch")).toHaveCount(1);
+  await expectOneSelectedMatchingInspector(page);
 });
