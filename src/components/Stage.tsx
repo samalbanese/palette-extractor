@@ -159,6 +159,7 @@ export default function Stage({
       inset.current!.style.opacity = cloud ? String(state.release) : "0";
       if (cloud) renderer!.draw(state);
       drawOverlay(wire.current!, result.steps, state, width, height, dpr);
+      parent.dataset.stageSpace = result.colorSpace;
       frames++;
       if (performance.now() - lastHook >= 250 || frames === 1) {
         parent.dataset.stageFrames = String(frames);
@@ -379,7 +380,10 @@ export default function Stage({
   useEffect(() => {
     const parent = host.current;
     return () => {
-      if (parent) delete parent.dataset.stageStep;
+      if (parent) {
+        delete parent.dataset.stageStep;
+        delete parent.dataset.stageSpace;
+      }
     };
   }, [host]);
 
