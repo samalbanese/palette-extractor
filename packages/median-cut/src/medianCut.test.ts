@@ -3,9 +3,10 @@ import {
   medianCut,
   medianCutTrace,
   medianCutWeighted,
+  mergeBoxes,
   type Pixel,
 } from "./medianCut.js";
-import { srgbToOklab } from "./oklab.js";
+import { srgbToOklab, oklabCoords } from "./oklab.js";
 import recorded from "./__fixtures__/median-cut-rgb.json";
 
 /** Squared Euclidean distance in RGB space, for test assertions only. */
@@ -335,5 +336,213 @@ describe("oklab mode", () => {
     const palette = medianCut(pixels, 8, { colorSpace: "oklab" });
     expect(palette.length).toBeGreaterThan(0);
     expect(palette.length).toBeLessThan(8);
+  });
+});
+
+/** Pixels along the red axis, shuffled so input order differs from split order. */
+const line: Pixel[] = [252, 10, 200, 100, 12, 250, 102, 202].map(
+  (r) => [r, 0, 0] as Pixel,
+);
+const tieCases: Record<string, Pixel[]> = {
+  line,
+  sameChannel: [
+    [10, 0, 0],
+    [10, 50, 0],
+    [10, 100, 0],
+    [200, 0, 0],
+  ],
+  sharedTuple: (() => {
+    const p: Pixel = [5, 5, 5];
+    return [p, p, [200, 200, 200] as Pixel];
+  })(),
+  // Each pair's two pixels are equally far from the pair's average.
+  representativeTie: [
+    [0, 0, 0],
+    [10, 0, 0],
+    [200, 0, 0],
+    [210, 0, 0],
+  ],
+};
+
+function stepRow(boxes: Uint16Array, n: number, k: number): number[] {
+  return [...boxes.subarray(k * n, (k + 1) * n)];
+}
+
+describe("trace assignments", () => {
+  it("records each pixel's group and box at every step", () => {
+    const { steps, result, assignments } = medianCutTrace(line, 4, {
+      assignments: true,
+    });
+    expect(result.map((entry) => entry.color.r)).toEqual([10, 100, 200, 250]);
+    expect(steps).toHaveLength(4);
+    expect([...assignments!.groups]).toEqual([3, 0, 2, 1, 0, 3, 1, 2]);
+    const n = line.length;
+    expect(stepRow(assignments!.boxes, n, 0)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(stepRow(assignments!.boxes, n, 1)).toEqual([1, 0, 1, 0, 0, 1, 0, 1]);
+    expect(stepRow(assignments!.boxes, n, 2)).toEqual([2, 0, 2, 1, 0, 2, 1, 2]);
+    expect(stepRow(assignments!.boxes, n, 3)).toEqual([3, 0, 2, 1, 0, 3, 1, 2]);
+  });
+
+  it("follows the same pixel object referenced twice", () => {
+    const { assignments } = medianCutTrace(tieCases.sharedTuple, 2, {
+      assignments: true,
+    });
+    expect([...assignments!.groups]).toEqual([0, 0, 1]);
+    expect(stepRow(assignments!.boxes, 3, 1)).toEqual([0, 0, 1]);
+  });
+
+  it("groups differently in RGB and OKLab when the spaces disagree", () => {
+    const medium: Pixel = [0, 120, 0];
+    const bright: Pixel = [0, 160, 0];
+    const yellowGreen: Pixel = [50, 160, 0];
+    const pixels = [
+      ...cluster(medium, 40, 3),
+      ...cluster(bright, 40, 3),
+      ...cluster(yellowGreen, 40, 3),
+    ];
+    const groups = (colorSpace: "rgb" | "oklab") => [
+      ...medianCutTrace(pixels, 2, { colorSpace, assignments: true })
+        .assignments!.groups,
+    ];
+    const expectedRgb = pixels.map((_, i) => (i >= 80 ? 1 : 0));
+    const expectedOklab = pixels.map((_, i) => (i < 40 ? 1 : 0));
+    expect(groups("rgb")).toEqual(expectedRgb);
+    expect(groups("oklab")).toEqual(expectedOklab);
+  });
+
+  it("agrees with every step's bounds and populations and with the result", () => {
+    const failures: string[] = [];
+    const cases = { ...fixtureCases, ...tieCases };
+    for (const colorSpace of ["rgb", "oklab"] as const) {
+      for (const [name, pixels] of Object.entries(cases)) {
+        for (const count of [1, 4, 6, 10]) {
+          const { steps, result, assignments } = medianCutTrace(pixels, count, {
+            colorSpace,
+            assignments: true,
+          });
+          const n = pixels.length;
+          const label = `${colorSpace} ${name} ${count}`;
+          if (assignments!.groups.length !== n)
+            failures.push(`${label}: groups length`);
+          if (assignments!.boxes.length !== steps.length * n)
+            failures.push(`${label}: boxes length`);
+          const coords = (p: Pixel) =>
+            colorSpace === "oklab" ? oklabCoords(p) : p;
+          steps.forEach((step, k) => {
+            const counts = new Array(step.length).fill(0);
+            for (let i = 0; i < n; i++) {
+              const b = assignments!.boxes[k * n + i];
+              counts[b]++;
+              const c = coords(pixels[i]);
+              const { min, max } = step[b].bounds;
+              for (let ch = 0; ch < 3; ch++)
+                if (c[ch] < min[ch] || c[ch] > max[ch])
+                  failures.push(
+                    `${label}: pixel ${i} outside box ${b} at step ${k}`,
+                  );
+            }
+            if (counts.join() !== step.map((box) => box.population).join())
+              failures.push(`${label}: box populations at step ${k}`);
+          });
+          const groupCounts = new Array(result.length).fill(0);
+          for (let i = 0; i < n; i++) groupCounts[assignments!.groups[i]]++;
+          if (groupCounts.join() !== result.map((e) => e.population).join())
+            failures.push(`${label}: group populations`);
+          const last = steps.length - 1;
+          for (let i = 0; i < n; i++) {
+            const fromBox = steps[last][assignments!.boxes[last * n + i]].color;
+            const fromGroup = result[assignments!.groups[i]].color;
+            if (JSON.stringify(fromBox) !== JSON.stringify(fromGroup))
+              failures.push(`${label}: pixel ${i} group color`);
+          }
+        }
+      }
+    }
+    expect(failures.slice(0, 10)).toEqual([]);
+  });
+
+  it("does not change steps or results, and adds no key unless asked", () => {
+    const cases = { ...fixtureCases, ...tieCases };
+    for (const colorSpace of ["rgb", "oklab"] as const) {
+      for (const pixels of Object.values(cases)) {
+        for (const count of [1, 4, 6, 10]) {
+          const off = medianCutTrace(pixels, count, { colorSpace });
+          const on = medianCutTrace(pixels, count, {
+            colorSpace,
+            assignments: true,
+          });
+          expect(on.steps).toEqual(off.steps);
+          expect(on.result).toEqual(off.result);
+          expect(Object.keys(off)).toEqual(["steps", "result"]);
+          expect(
+            Object.keys(
+              medianCutTrace(pixels, count, { colorSpace, assignments: false }),
+            ),
+          ).toEqual(["steps", "result"]);
+        }
+      }
+    }
+  });
+
+  it("returns empty assignments for empty input or a zero count", () => {
+    for (const [pixels, count] of [
+      [[], 6],
+      [line, 0],
+    ] as const) {
+      const { steps, result, assignments } = medianCutTrace(
+        pixels as Pixel[],
+        count,
+        { assignments: true },
+      );
+      expect(steps).toEqual([]);
+      expect(result).toEqual([]);
+      expect(assignments!.groups).toHaveLength(0);
+      expect(assignments!.boxes).toHaveLength(0);
+    }
+  });
+
+  it("puts a single pixel in group 0 and box 0 at every step", () => {
+    const { steps, assignments } = medianCutTrace([[7, 8, 9]], 6, {
+      assignments: true,
+    });
+    expect([...assignments!.groups]).toEqual([0]);
+    expect([...assignments!.boxes]).toEqual(steps.map(() => 0));
+  });
+
+  it("rejects counts whose indices would not fit", () => {
+    expect(() => medianCutTrace(line, 65536, { assignments: true })).toThrow(
+      RangeError,
+    );
+  });
+
+  it("does not mutate the input when assignments are on", () => {
+    const pixels = fixtureCases.mixedClusters.map((p) => [...p] as Pixel);
+    const copy = pixels.map((p) => [...p]);
+    medianCutTrace(pixels, 6, { colorSpace: "oklab", assignments: true });
+    expect(pixels).toEqual(copy);
+  });
+});
+
+describe("mergeBoxes", () => {
+  it("merges boxes with the same color and maps both to one group", () => {
+    const { result, groupOf } = mergeBoxes([
+      { color: { r: 1, g: 2, b: 3 }, population: 5 },
+      { color: { r: 9, g: 9, b: 9 }, population: 7 },
+      { color: { r: 1, g: 2, b: 3 }, population: 4 },
+    ]);
+    expect(result).toEqual([
+      { color: { r: 1, g: 2, b: 3 }, population: 9 },
+      { color: { r: 9, g: 9, b: 9 }, population: 7 },
+    ]);
+    expect(groupOf).toEqual([0, 1, 0]);
+  });
+
+  it("keeps box order for equal populations", () => {
+    const { result, groupOf } = mergeBoxes([
+      { color: { r: 1, g: 1, b: 1 }, population: 3 },
+      { color: { r: 2, g: 2, b: 2 }, population: 3 },
+    ]);
+    expect(result.map((e) => e.color.r)).toEqual([1, 2]);
+    expect(groupOf).toEqual([0, 1]);
   });
 });

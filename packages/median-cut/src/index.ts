@@ -3,6 +3,7 @@ export type {
   Pixel,
   ColorSpace,
   MedianCutOptions,
+  TraceAssignments,
   WeightedColor,
   SplitStep,
 } from "./medianCut.js";

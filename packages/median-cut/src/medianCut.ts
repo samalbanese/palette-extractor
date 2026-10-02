@@ -18,21 +18,40 @@ export interface SplitStep
 
 export interface MedianCutOptions {
   colorSpace?: ColorSpace;
+  /**
+   * medianCutTrace only: also report which group each input pixel ends in
+   * and which box holds it at every step. Off by default.
+   */
+  assignments?: boolean;
 }
+
+/** Per-pixel membership, indexed by the pixel's position in the input. */
+export interface TraceAssignments {
+  /** For input pixel i, the index into `result` of its final group. */
+  groups: Uint16Array;
+  /** For step k and input pixel i, the index into steps[k]: boxes[k * n + i]. */
+  boxes: Uint16Array;
+}
+
+/** Largest color count whose group and box indices fit a Uint16Array. */
+export const MAX_ASSIGNABLE_COLORS = 65535;
 
 /** A source pixel paired with the coordinates it is split and scored by. */
 interface Entry {
   pixel: Pixel;
   coords: Pixel;
+  /** Position in the caller's input, so membership can be reported back. */
+  index: number;
 }
 
 function toEntries(pixels: Pixel[], colorSpace: ColorSpace): Entry[] {
-  return pixels.map((pixel) => ({
+  return pixels.map((pixel, index) => ({
     pixel,
     // RGB mode reuses the pixel itself as its coordinates, so every split,
     // score, and average below runs on the exact same numbers as before
     // OKLab mode existed.
     coords: colorSpace === "oklab" ? oklabCoords(pixel) : pixel,
+    index,
   }));
 }
 
@@ -70,8 +89,23 @@ export function medianCutTrace(
   pixels: Pixel[],
   count: number,
   options?: MedianCutOptions,
-): { steps: SplitStep[]; result: WeightedColor[] } {
-  return runMedianCut(pixels, count, true, options?.colorSpace ?? "rgb");
+): {
+  steps: SplitStep[];
+  result: WeightedColor[];
+  assignments?: TraceAssignments;
+} {
+  const withAssignments = options?.assignments === true;
+  if (withAssignments && count > MAX_ASSIGNABLE_COLORS)
+    throw new RangeError(
+      `assignments support at most ${MAX_ASSIGNABLE_COLORS} colors`,
+    );
+  return runMedianCut(
+    pixels,
+    count,
+    true,
+    options?.colorSpace ?? "rgb",
+    withAssignments,
+  );
 }
 
 function runMedianCut(
@@ -79,12 +113,30 @@ function runMedianCut(
   count: number,
   trace: boolean,
   colorSpace: ColorSpace,
-): { steps: SplitStep[]; result: WeightedColor[] } {
-  if (pixels.length === 0 || count < 1) return { steps: [], result: [] };
+  withAssignments = false,
+): {
+  steps: SplitStep[];
+  result: WeightedColor[];
+  assignments?: TraceAssignments;
+} {
+  if (pixels.length === 0 || count < 1)
+    return withAssignments
+      ? {
+          steps: [],
+          result: [],
+          assignments: {
+            groups: new Uint16Array(0),
+            boxes: new Uint16Array(0),
+          },
+        }
+      : { steps: [], result: [] };
 
   let boxes: Entry[][] = [toEntries(pixels, colorSpace)];
   const populationSplits = Math.ceil(count * 0.75);
   const steps: SplitStep[] = trace ? [snapshot(boxes)] : [];
+  const history: Uint16Array[] = withAssignments
+    ? [boxIndexes(boxes, pixels.length)]
+    : [];
 
   while (boxes.length < count) {
     const byVolume = boxes.length >= populationSplits;
@@ -114,25 +166,68 @@ function runMedianCut(
       | 2;
     boxes.splice(bestIndex, 1, ...splitBox(box, widest));
     if (trace) steps.push(snapshot(boxes));
+    if (withAssignments) history.push(boxIndexes(boxes, pixels.length));
   }
 
-  const colors = boxes
-    .map((box) => ({ population: box.length, color: representativeColor(box) }))
-    .sort((a, b) => b.population - a.population);
+  const { result, groupOf } = mergeBoxes(
+    boxes.map((box) => ({
+      population: box.length,
+      color: representativeColor(box),
+    })),
+  );
+  if (!withAssignments) return { steps, result };
 
-  const merged = new Map<string, WeightedColor>();
-  for (const entry of colors) {
-    const { r, g, b } = entry.color;
-    const key = `${r},${g},${b}`;
+  const groups = new Uint16Array(pixels.length);
+  boxes.forEach((box, b) => {
+    for (const entry of box) groups[entry.index] = groupOf[b];
+  });
+  const flat = new Uint16Array(history.length * pixels.length);
+  history.forEach((row, k) => flat.set(row, k * pixels.length));
+  return { steps, result, assignments: { groups, boxes: flat } };
+}
+
+/** Which box (by position in `boxes`) holds each input pixel right now. */
+function boxIndexes(boxes: Entry[][], n: number): Uint16Array {
+  const row = new Uint16Array(n);
+  boxes.forEach((box, b) => {
+    for (const entry of box) row[entry.index] = b;
+  });
+  return row;
+}
+
+/**
+ * Orders final boxes by population, merges boxes whose representative
+ * colors are identical, and orders the merged colors by population again.
+ * `groupOf[i]` is the index in `result` that box i was merged into.
+ * Both sorts are stable, so equal populations keep box order.
+ */
+export function mergeBoxes(boxColors: WeightedColor[]): {
+  result: WeightedColor[];
+  groupOf: number[];
+} {
+  const order = boxColors
+    .map((_, i) => i)
+    .sort((a, b) => boxColors[b].population - boxColors[a].population);
+  const merged = new Map<string, { entry: WeightedColor; boxes: number[] }>();
+  for (const i of order) {
+    const { color, population } = boxColors[i];
+    const key = `${color.r},${color.g},${color.b}`;
     const existing = merged.get(key);
-    if (existing) existing.population += entry.population;
-    else merged.set(key, { color: entry.color, population: entry.population });
+    if (existing) {
+      existing.entry.population += population;
+      existing.boxes.push(i);
+    } else {
+      merged.set(key, { entry: { color, population }, boxes: [i] });
+    }
   }
-
-  return {
-    steps,
-    result: [...merged.values()].sort((a, b) => b.population - a.population),
-  };
+  const sorted = [...merged.values()].sort(
+    (a, b) => b.entry.population - a.entry.population,
+  );
+  const groupOf = new Array<number>(boxColors.length);
+  sorted.forEach((group, g) => {
+    for (const i of group.boxes) groupOf[i] = g;
+  });
+  return { result: sorted.map((group) => group.entry), groupOf };
 }
 
 function snapshot(boxes: Entry[][]): SplitStep {

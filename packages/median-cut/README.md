@@ -50,6 +50,25 @@ Types: `RGB` (`{ r, g, b }`), `Pixel` (`[r, g, b]` tuple), `Oklab`
 (`{ L, a, b }`), `WeightedColor`, `SplitStep`, `ColorSpace`
 (`"rgb" | "oklab"`), `MedianCutOptions` (`{ colorSpace?: ColorSpace }`).
 
+## Assignments
+
+`medianCutTrace` can also report where every input pixel went, for
+visualizing the algorithm. Pass `assignments: true`:
+
+```ts
+import { medianCutTrace } from "@samalbanese/median-cut";
+
+const { steps, result, assignments } = medianCutTrace(pixels, 6, {
+  assignments: true,
+});
+// assignments.groups[i]: index into `result` of pixel i's final color.
+// assignments.boxes[k * pixels.length + i]: index into steps[k] of the box
+// holding pixel i at step k.
+```
+
+Without the option the return value is unchanged. With it, `count` may
+be at most 65,535.
+
 ## How median cut works
 
 Median cut starts with every pixel in one box and repeatedly splits the
