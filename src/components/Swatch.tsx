@@ -47,9 +47,10 @@ export function Swatch({
       : valueKind === "rgb"
         ? formatRgb(color)
         : formatHsl(rgbToHsl(color));
-  // Keyed by position, not color, so a repeated color or the inspector's copy
-  // of the same value does not show this swatch's confirmation.
-  const copyKey = `swatch ${index}`;
+  // Position separates repeated colors and keeps the inspector's copy of the
+  // same value apart; the hex keeps a re-sort from handing the confirmation to
+  // whichever color moves into this slot.
+  const copyKey = `swatch ${index} ${hex}`;
   return (
     <article
       className={`swatch ${selected ? "selected" : ""} ${changed ? "changed" : ""}`}

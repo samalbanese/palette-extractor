@@ -220,6 +220,22 @@ test("a shared palette with a repeated color confirms only the swatch copied", a
     .getByRole("button", { name: "Copy #5f92ad", exact: true })
     .click();
   expect(await confirmations(page, "swatch 3")).toEqual(["swatch 3"]);
+
+  // Re-sorting moves a different color into the copied position; it must not
+  // inherit the confirmation.
+  await page
+    .locator(".swatch")
+    .first()
+    .getByRole("button", { name: "Copy #5f92ad", exact: true })
+    .click();
+  await confirmations(page, "swatch 1");
+  await page.getByLabel("Sort palette", { exact: true }).selectOption("hue");
+  const brown = page
+    .locator(".swatch")
+    .first()
+    .getByRole("button", { name: "Copy #352114", exact: true });
+  await expect(brown).toBeVisible();
+  expect((await brown.textContent())?.trim()).toBe("#352114");
 });
 
 test("algorithm and contrast tools work with keyboard tabs and reduced motion", async ({
