@@ -463,6 +463,27 @@ describe("checkBundle", () => {
     );
   });
 
+  it("spots a preloaded Stage however the manifest spells its path", () => {
+    const result = checkBundle(
+      makeDist({
+        html: entryHtml('<link rel="modulepreload" href="/assets/Stage-f.js">'),
+        manifest: entryManifest({
+          "src/components/Stage.tsx": {
+            file: "./assets/Stage-f.js",
+            src: "src/components/Stage.tsx",
+            isDynamicEntry: true,
+            imports: [],
+          },
+        }),
+        files: { "assets/index-a.js": 2 * KB, "assets/Stage-f.js": 1 * KB },
+      }),
+      budgets,
+    );
+    expect(result.problems).toContain(
+      "the Stage chunk is part of first-load JS; it must stay lazily loaded",
+    );
+  });
+
   it("fails on a missing module script, a missing file, or a missing manifest", () => {
     const files = { "assets/index-a.js": 2 * KB };
     expect(
