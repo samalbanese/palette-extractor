@@ -31,9 +31,30 @@ function attr(tag, name) {
   return undefined;
 }
 
-/** One spelling per file: "/assets/a.js", "./assets/a.js" and "/x/../assets/a.js" are "assets/a.js". */
+/** One spelling per manifest file: "./assets/a.js" and "assets/a.js" are the same. */
 const canonical = (path) =>
   posix.normalize(path.replace(/^(?:\.?\/)+/, "")).replace(/^(?:\.\/)+/, "");
+
+// index.html is served from the site root. A reference is resolved with URL
+// rules (dot segments stop at the root), and anything that is not a plain
+// same-origin path, such as another origin, a query or a fragment, cannot be
+// tied to a file in this build.
+const SITE = "https://build.invalid/";
+function fileOfReference(ref) {
+  let url;
+  try {
+    url = new URL(ref, SITE);
+  } catch {
+    return null;
+  }
+  if (url.origin !== new URL(SITE).origin || url.search || url.hash)
+    return null;
+  try {
+    return decodeURIComponent(url.pathname).replace(/^\//, "");
+  } catch {
+    return null;
+  }
+}
 
 export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
   const problems = [];
@@ -85,7 +106,15 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     )
     .map((tag) => attr(tag, "href"))
     .filter(Boolean);
-  const htmlFiles = [...scripts, ...preloads].map(canonical);
+  const htmlFiles = [];
+  for (const ref of [...scripts, ...preloads]) {
+    const file = fileOfReference(ref);
+    if (file === null)
+      problems.push(
+        `${ref} is loaded by index.html but cannot be mapped to a file in this build`,
+      );
+    else htmlFiles.push(file);
+  }
 
   // A module the manifest does not list could import anything unmeasured.
   for (const file of htmlFiles)

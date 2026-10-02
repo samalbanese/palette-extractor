@@ -224,13 +224,42 @@ describe("checkBundle", () => {
       }),
       files: { "assets/index-a.js": 1 * KB, "assets/dep-e.js": 1 * KB },
     });
-    expect(
-      row(checkBundle(dir, budgets), "first-load JS").files.sort(),
-    ).toEqual([
+    const result = checkBundle(dir, budgets);
+    expect(result.ok).toBe(true);
+    expect(row(result, "first-load JS").files.sort()).toEqual([
       "assets/dep-e.js",
       "assets/index-a.js",
       "assets/quantize.worker-abc.js",
     ]);
+  });
+
+  it("stops dot segments at the site root the way a browser does", () => {
+    const dir = makeDist({
+      html: `<script type="module" src="/assets/../../assets/index-a.js"></script>`,
+      manifest: entryManifest(),
+      files: { "assets/index-a.js": 1 * KB },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(result.problems).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("fails on a module it cannot map to a file in this build", () => {
+    for (const src of [
+      "/bootstrap.js?/../assets/index-a.js",
+      "/assets/index-a.js#x",
+      "https://other.example/../../assets/index-a.js",
+      "//other.example/assets/index-a.js",
+    ]) {
+      const dir = makeDist({
+        html: `<script type="module" src="${src}"></script>`,
+        manifest: entryManifest(),
+        files: { "assets/index-a.js": 1 * KB },
+      });
+      const result = checkBundle(dir, budgets);
+      expect(result.ok, src).toBe(false);
+      expect(result.problems.join("\n"), src).toMatch(/cannot be mapped/);
+    }
   });
 
   it("follows the imports of an entry referenced by a relative path", () => {
