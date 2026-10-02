@@ -45,3 +45,13 @@ export function readablePairs(palette: RGB[]): ContrastPair[] {
   }
   return pairs.sort((a, b) => b.ratio - a.ratio);
 }
+
+/**
+ * Format a contrast ratio for display, without the ":1". Truncates to two
+ * decimals instead of rounding so a pair just under a WCAG threshold (4.499)
+ * never reads as meeting it (4.50). The tiny epsilon absorbs binary floating
+ * point error, so 4.35 stays "4.35" rather than "4.34".
+ */
+export function formatRatio(ratio: number): string {
+  return (Math.floor(ratio * 100 + 1e-9) / 100).toFixed(2);
+}

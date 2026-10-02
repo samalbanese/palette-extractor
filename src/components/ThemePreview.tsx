@@ -2,7 +2,7 @@ import { useState } from "react";
 import { type RGB, rgbToHex, labelColorFor } from "../lib/color";
 import { suggestRoles } from "../lib/theme";
 import { Icon } from "./Icon";
-import { contrastRatio } from "../lib/contrast";
+import { formatRatio } from "../lib/contrast";
 
 export function ThemePreview({
   palette,
@@ -25,8 +25,8 @@ export function ThemePreview({
             They need a partner.
           </h2>
           <p>
-            The strongest text pairing here is only {roles.ratio.toFixed(2)}:1.
-            Try more colors or a different image to reach 4.5:1 for readable
+            The strongest text pairing here is only {formatRatio(roles.ratio)}
+            :1. Try more colors or a different image to reach 4.5:1 for readable
             body text.
           </p>
         </div>
@@ -74,7 +74,7 @@ export function ThemePreview({
           ))}
         </div>
         <p className="contrast-note">
-          <Icon name="contrast" size={14} /> {contrastRatio(bg, fg).toFixed(2)}
+          <Icon name="contrast" size={14} /> {formatRatio(roles.ratio)}
           :1 text contrast ·{" "}
           {roles.ratio >= 7
             ? "AAA"

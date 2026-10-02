@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type RGB, rgbToHex, labelColorFor } from "../lib/color";
-import { readablePairs } from "../lib/contrast";
+import { formatRatio, readablePairs } from "../lib/contrast";
 import { copyText } from "../lib/clipboard";
 
 export function ContrastPanel({ palette }: { palette: RGB[] }) {
@@ -58,7 +58,7 @@ export function ContrastPanel({ palette }: { palette: RGB[] }) {
                 <button
                   className="contrast-pair"
                   onClick={() => void handleCopy(i, fg, bg)}
-                  aria-label={`Copy CSS for ${fg} text on ${bg}, contrast ${pair.ratio.toFixed(2)} to 1, ${pair.level}`}
+                  aria-label={`Copy CSS for ${fg} text on ${bg}, contrast ${formatRatio(pair.ratio)} to 1, ${pair.level}`}
                 >
                   <span
                     className="contrast-sample"
@@ -66,7 +66,7 @@ export function ContrastPanel({ palette }: { palette: RGB[] }) {
                   >
                     <span>Aa</span>
                     <span style={{ color: labelColorFor(pair.bg) }}>
-                      {(Math.floor(pair.ratio * 100) / 100).toFixed(2)}:1
+                      {formatRatio(pair.ratio)}:1
                       <br />
                       {pair.level === "AA Large"
                         ? "Large text only"

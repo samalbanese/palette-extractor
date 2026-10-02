@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrastRatio, readablePairs } from "./contrast";
+import { contrastRatio, formatRatio, readablePairs } from "./contrast";
 
 const black = { r: 0, g: 0, b: 0 };
 const white = { r: 255, g: 255, b: 255 };
@@ -43,5 +43,56 @@ describe("readablePairs (acceptance: WCAG-compliant pairs with ratios)", () => {
     const b = { r: 120, g: 120, b: 120 };
     expect(readablePairs([a, b])).toEqual([]);
     expect(readablePairs([])).toEqual([]);
+  });
+});
+
+const gray = (v: number) => ({ r: v, g: v, b: v });
+
+describe("formatRatio", () => {
+  it("truncates instead of rounding, so a near miss never reads as a pass", () => {
+    expect(formatRatio(4.4999)).toBe("4.49");
+    expect(formatRatio(6.4199)).toBe("6.41");
+    expect(formatRatio(6.999)).toBe("6.99");
+  });
+
+  it("keeps exact hundredths despite floating point error", () => {
+    // 4.35 * 100 is 434.99999999999994 in binary floating point.
+    expect(formatRatio(4.35)).toBe("4.35");
+    expect(formatRatio(4.5)).toBe("4.50");
+    expect(formatRatio(1)).toBe("1.00");
+    expect(formatRatio(21)).toBe("21.00");
+  });
+
+  it("never shows a number that contradicts the WCAG level, for any pair of grays", () => {
+    const contradictions: string[] = [];
+    for (let a = 0; a < 256; a++) {
+      for (let b = a; b < 256; b++) {
+        const ratio = contrastRatio(gray(a), gray(b));
+        const shown = Number(formatRatio(ratio));
+        if (shown >= 4.5 !== ratio >= 4.5 || shown >= 7 !== ratio >= 7)
+          contradictions.push(`${a}/${b}: ${ratio} shown as ${shown}`);
+      }
+    }
+    expect(contradictions).toEqual([]);
+  });
+});
+
+describe("contrast ratios on screen", () => {
+  const sources = import.meta.glob("../components/*.tsx", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }) as Record<string, string>;
+
+  it("are all formatted by formatRatio", () => {
+    expect(Object.keys(sources).length).toBeGreaterThan(5);
+    const adHoc = Object.entries(sources)
+      .filter(([, source]) =>
+        /\.ratio\.toFixed\(|contrastRatio\([^)]*\)\.toFixed\(|Math\.floor\([^)]*ratio/.test(
+          source,
+        ),
+      )
+      .map(([file]) => file);
+    expect(adHoc).toEqual([]);
   });
 });
