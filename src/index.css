@@ -413,6 +413,7 @@ code {
   font-size: 14px;
   color: #a1a3a4;
   margin: 0;
+  text-wrap: pretty;
 }
 .button {
   border: 1px solid transparent;
@@ -459,10 +460,6 @@ code {
 .upload-main {
   height: 45px;
   padding: 12px 17px;
-}
-.shortcut {
-  margin-left: 19px;
-  font-size: 18px;
 }
 .text-button {
   display: flex;
@@ -1731,9 +1728,6 @@ select {
   .intro p {
     font-size: 12px;
   }
-  .shortcut {
-    display: none;
-  }
   .workspace {
     gap: 22px;
     grid-template-columns: 1fr 1fr;
@@ -1972,13 +1966,6 @@ select {
   .upload-main {
     width: 100%;
     height: 43px;
-  }
-  .shortcut {
-    display: inline;
-    margin-left: auto;
-  }
-  .upload-main > svg {
-    margin-right: auto;
   }
   .workspace {
     grid-template-columns: 1fr;

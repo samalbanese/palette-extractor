@@ -231,3 +231,46 @@ test("no color name repeats, and the swatches, inspector and JSON export agree",
   }[];
   expect(exported.map((entry) => entry.name)).toEqual(names);
 });
+
+for (const width of [320, 390]) {
+  test(`the hero subtitle never leaves one word alone at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await page.evaluate(() => document.fonts.ready);
+    const lines = await page.locator(".intro p").evaluate((p) => {
+      const text = p.firstChild!;
+      const words: { word: string; top: number }[] = [];
+      const pattern = /\S+/g;
+      for (
+        let m = pattern.exec(text.textContent!);
+        m;
+        m = pattern.exec(text.textContent!)
+      ) {
+        const range = document.createRange();
+        range.setStart(text, m.index);
+        range.setEnd(text, m.index + m[0].length);
+        words.push({
+          word: m[0],
+          top: Math.round(range.getBoundingClientRect().top),
+        });
+      }
+      const byLine = new Map<number, string[]>();
+      for (const { word, top } of words)
+        byLine.set(top, [...(byLine.get(top) ?? []), word]);
+      return [...byLine.values()];
+    });
+    for (const line of lines)
+      expect(line.length, lines.join(" / ")).toBeGreaterThan(1);
+  });
+}
+
+test("the upload button carries no external-link arrow", async ({ page }) => {
+  await page.goto("/");
+  await ready(page);
+  const upload = page.getByRole("button", { name: "Upload image" });
+  await expect(upload).toBeVisible();
+  await expect(upload).not.toContainText("↗");
+  await expect(upload.locator(".shortcut")).toHaveCount(0);
+});

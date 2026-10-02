@@ -264,7 +264,7 @@ export default function App() {
       className="button primary upload-main"
       onClick={() => fileInput.current?.click()}
     >
-      <Icon name="upload" /> Upload image <span className="shortcut">↗</span>
+      <Icon name="upload" /> Upload image
     </button>
   );
   const sourceControls = (
