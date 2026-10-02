@@ -372,6 +372,29 @@ test("a failed replacement clears the old cloud and Photo still works", async ({
   ).toBe("0");
 });
 
+test("Photo hides the old cloud while a replacement is still starting", async ({
+  page,
+}) => {
+  await holdStageDecode(page);
+  await page.goto("/");
+  await stageDone(page);
+  await setStageDecode(page, "slow");
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  // The previous cloud stays on show until the new one can draw.
+  expect(await frameView(page, "slow")).toMatchObject({ clouds: 1 });
+  await page.getByRole("button", { name: "Photo", exact: true }).click();
+  const layers = await page.locator(".source-frame").evaluate((frame) => {
+    const opacity = (selector: string) =>
+      getComputedStyle(frame.querySelector(selector)!).opacity;
+    return {
+      surface: opacity(".stage-surface"),
+      wire: opacity(".stage-wire"),
+      photo: opacity(":scope > img"),
+    };
+  });
+  expect(layers).toEqual({ surface: "0", wire: "0", photo: "1" });
+});
+
 test("an intro hidden while it starts resumes when the tab returns", async ({
   page,
 }) => {
