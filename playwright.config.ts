@@ -2,11 +2,14 @@ import { defineConfig } from "@playwright/test";
 
 // Tests get their own ports and never reuse a running server, so a dev server
 // left open (or one from another checkout) can never stand in for this one.
-// Outside CI, which builds just before the tests, the production preview is
-// rebuilt first so it always serves the current source.
-const DEV = "http://127.0.0.1:5183";
-const PREVIEW = "http://127.0.0.1:4183";
-const preview = "npm run preview -- --host 127.0.0.1 --port 4183 --strictPort";
+// E2E_DEV_PORT and E2E_PREVIEW_PORT move them, so several checkouts can run
+// their suites at once. Outside CI, which builds just before the tests, the
+// production preview is rebuilt first so it always serves the current source.
+const devPort = Number(process.env.E2E_DEV_PORT ?? 5183);
+const previewPort = Number(process.env.E2E_PREVIEW_PORT ?? 4183);
+const DEV = `http://127.0.0.1:${devPort}`;
+const PREVIEW = `http://127.0.0.1:${previewPort}`;
+const preview = `npm run preview -- --host 127.0.0.1 --port ${previewPort} --strictPort`;
 
 export default defineConfig({
   testDir: "./tests",
@@ -23,7 +26,13 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", testIgnore: /stage-(prod|webgl|no-webgl)\.spec\.ts/ },
+    {
+      name: "chromium",
+      testIgnore: [
+        /stage-(prod|webgl|no-webgl)\.spec\.ts/,
+        /\.modes\.spec\.ts$/,
+      ],
+    },
     {
       name: "stage-prod",
       testMatch: "stage-prod.spec.ts",
@@ -53,10 +62,36 @@ export default defineConfig({
         },
       },
     },
+    // A spec named *.modes.spec.ts runs once with WebGL and once with the 2D
+    // fallback; testInfo.project.name says which.
+    {
+      name: "modes-webgl",
+      testMatch: /\.modes\.spec\.ts$/,
+      use: {
+        launchOptions: {
+          executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+          args: [
+            "--use-gl=angle",
+            "--use-angle=swiftshader",
+            "--enable-unsafe-swiftshader",
+          ],
+        },
+      },
+    },
+    {
+      name: "modes-no-webgl",
+      testMatch: /\.modes\.spec\.ts$/,
+      use: {
+        launchOptions: {
+          executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+          args: ["--disable-webgl", "--disable-webgl2"],
+        },
+      },
+    },
   ],
   webServer: [
     {
-      command: "npm run dev -- --host 127.0.0.1 --port 5183 --strictPort",
+      command: `npm run dev -- --host 127.0.0.1 --port ${devPort} --strictPort`,
       url: DEV,
       reuseExistingServer: false,
     },

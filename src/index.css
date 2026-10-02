@@ -494,7 +494,7 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 35px;
+  min-height: 41px;
   margin-bottom: 15px;
 }
 .section-label h2 {
@@ -508,7 +508,7 @@ code {
 }
 .section-label h2 > span {
   font: 10px var(--font-mono);
-  color: #898c8e;
+  color: #a1a3a4;
 }
 .section-label h2 b {
   font: 10px var(--font-mono);
@@ -516,6 +516,54 @@ code {
   border-radius: 4px;
   padding: 3px 6px;
   color: #aaa;
+}
+/* The source row holds the title, the color space switch and Replace on one
+   line at every width, so nothing in it may wrap or shrink. */
+.source-panel > .section-label {
+  gap: 8px;
+}
+.source-panel > .section-label > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* Both header rows read as one line: the titles sit on the row's top line
+   (the palette title's second line holds the color space comparison), and
+   each 32 to 33 px control is centered on that 23 px line. The shift is
+   visual only, so the rows keep their height. */
+.source-panel > .section-label,
+.palette-panel > .section-label {
+  align-items: flex-start;
+}
+.source-panel > .section-label > h2 {
+  height: 23px;
+}
+.source-panel > .section-label > :not(h2),
+.palette-panel > .section-label > .value-switch {
+  translate: 0 -4.5px;
+}
+/* Sits beside Replace rather than midway along the row. */
+.source-panel > .section-label > .colorspace-switch {
+  margin-left: auto;
+  margin-right: 6px;
+}
+.palette-panel > .section-label {
+  gap: 12px;
+}
+.palette-title {
+  flex: 1;
+  min-width: 0;
+}
+.palette-title h2 {
+  height: 23px;
+}
+/* A second heading line kept at full height while empty, so the color space
+   comparison can appear and disappear without moving anything. */
+.color-comparison {
+  min-height: 18px;
+  line-height: 18px;
+  font-size: 12px;
+  color: #a1a3a4;
+  white-space: nowrap;
 }
 .source-frame {
   height: 327px;
@@ -695,7 +743,7 @@ code {
 }
 .source-actions > span {
   font-size: 10px;
-  color: #979b9d;
+  color: #a1a3a4;
 }
 .value-switch {
   display: flex;
@@ -721,20 +769,28 @@ code {
   padding: 0;
   border: 0;
 }
-/* Dims gently while new colors are found; the result snaps back to full
-   strength so fresh swatches never sit behind a fading layer. */
-.palette-fieldset.is-busy {
-  opacity: 0.5;
-  transition: opacity 0.2s;
+/* The palette stays at full strength while new colors are found, so a
+   change melts from what was on screen. Busy shows through the frame's badge
+   and aria-busy; the controls the busy fieldset disables keep their look. */
+.palette-fieldset.is-busy button:not([disabled]) {
+  opacity: 1;
+  cursor: progress;
+}
+.palette-fieldset.is-busy .lock-button:not([disabled], .is-locked) {
+  opacity: 0.9;
 }
 .swatch-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  min-height: 327px;
+  /* Room for the default six swatches at each layout, so the first palette
+     arrives without pushing anything below it down. */
+  min-height: 359px;
 }
 .swatch {
   min-width: 0;
+}
+.swatch.is-entering {
   animation: swatch-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--delay);
 }
@@ -884,12 +940,6 @@ code {
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* A floated legend joins the flex row like the other toolbar labels
-   instead of being drawn on top of the fieldset. */
-.colorspace-switch legend {
-  float: left;
-  padding: 0;
-}
 .colorspace-options {
   display: flex;
   gap: 2px;
@@ -945,7 +995,7 @@ select {
 }
 .palette-hint {
   font-size: 10px;
-  color: #9a9d9e;
+  color: #a1a3a4;
   line-height: 1.5;
   margin: 10px 0 0;
 }
@@ -964,6 +1014,9 @@ select {
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+}
+.inspector.is-pending {
+  visibility: hidden;
 }
 .inspector > i {
   width: 19px;
@@ -1116,7 +1169,6 @@ select {
 }
 .brand-nav > span {
   font-size: 8px;
-  opacity: 0.85;
 }
 .brand-body {
   display: grid;
@@ -1477,34 +1529,6 @@ select {
   color: #b1b5b7;
   font-size: 13px;
 }
-.algorithm-stats {
-  display: flex;
-  gap: 27px;
-  margin-top: 23px;
-}
-.algorithm-stats strong {
-  font: 22px var(--font-mono);
-  color: #eae9e3;
-  display: block;
-}
-.algorithm-stats span {
-  font-size: 10px;
-  color: #969b9d;
-  display: block;
-  margin-top: 5px;
-}
-.algorithm-canvas {
-  position: relative;
-  border: 1px solid #3a3e41;
-  border-radius: 8px;
-  background: #1b1e20;
-  overflow: hidden;
-}
-.algorithm-canvas canvas {
-  width: 100%;
-  height: 360px;
-  display: block;
-}
 .cube-topline {
   position: absolute;
   inset: 16px 18px auto;
@@ -1613,7 +1637,7 @@ select {
     height: 125px;
   }
   .swatch-grid {
-    min-height: 360px;
+    min-height: 391px;
   }
 }
 @media (max-width: 1150px) {
@@ -1645,7 +1669,7 @@ select {
     height: 100px;
   }
   .swatch-grid {
-    min-height: 307px;
+    min-height: 339px;
     gap: 10px;
   }
   .source-actions > span {
@@ -1697,7 +1721,7 @@ select {
   }
   .swatch-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    min-height: 310px;
+    min-height: 362px;
     gap: 10px;
   }
   .swatch-color {
@@ -1853,17 +1877,8 @@ select {
     grid-row: 4;
     margin: 0;
   }
-  .algorithm-panel .panel-intro {
-    display: block;
-  }
-  .algorithm-panel .panel-intro > p {
-    max-width: 550px;
-  }
   .step-list {
     grid-template-columns: repeat(3, 1fr);
-  }
-  .algorithm-stats {
-    margin-top: 15px;
   }
   .contrast-panel .contrast-heading {
     align-items: start;
@@ -1871,12 +1886,22 @@ select {
     gap: 14px;
   }
 }
+/* Two columns need about 313px each for the source row; below that the
+   workspace stacks. */
+@media (max-width: 699px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .source-panel > .section-label {
+    min-height: 35px;
+  }
+}
 @media (max-width: 580px) {
   .app-shell {
     padding: 0 20px;
   }
   .site-header {
-    height: 73px;
+    height: 56px;
   }
   .wordmark {
     font-size: 17px;
@@ -1903,12 +1928,12 @@ select {
   }
   .intro {
     display: block;
-    padding: 29px 0 25px;
+    padding: 29px 0 17px;
   }
   .intro h1 {
-    font-size: 34px;
+    font-size: 26px;
     line-height: 1.12;
-    letter-spacing: -1.5px;
+    letter-spacing: -1px;
     max-width: 330px;
     margin: 12px 0;
   }
@@ -1917,8 +1942,12 @@ select {
     line-height: 1.7;
     max-width: 290px;
   }
-  .upload-main {
+  /* Upload, the sample moods and the drop/URL row sit below the palette on
+     phones; Replace in the source row keeps upload on the first screen. */
+  .phone-source-controls {
     margin-top: 21px;
+  }
+  .upload-main {
     width: 100%;
     height: 43px;
   }
@@ -1931,13 +1960,13 @@ select {
   }
   .workspace {
     grid-template-columns: 1fr;
-    gap: 27px;
+    gap: 21px;
   }
   .section-label {
     margin-bottom: 12px;
   }
   .source-frame {
-    height: 245px;
+    height: 220px;
   }
   .sample-row {
     flex-direction: row;
@@ -1965,10 +1994,10 @@ select {
   .swatch-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px 10px;
-    min-height: 0;
+    min-height: 298px;
   }
   .swatch-color {
-    height: 102px;
+    height: 84px;
   }
   .swatch-info {
     padding-top: 7px;
@@ -2220,15 +2249,6 @@ select {
   .step-list {
     grid-template-columns: 1fr;
   }
-  .algorithm-canvas canvas {
-    height: 310px;
-  }
-  .algorithm-stats strong {
-    font-size: 21px;
-  }
-  .algorithm-stats span {
-    font-size: 9px;
-  }
   .cube-topline {
     font-size: 8px;
     inset: 14px 13px auto;
@@ -2245,6 +2265,17 @@ select {
   }
   .image-caption > span + span {
     font-size: 8px;
+  }
+}
+/* Narrower than about 360px the source row cannot hold all three; the color
+   space switch and Replace drop to a second line together. */
+@media (max-width: 359px) {
+  .source-panel > .section-label {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .source-panel > .section-label > h2 {
+    flex-basis: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2395,7 +2426,6 @@ select {
   .animation-controls button,
   .cube-topline,
   .cube-bottomline,
-  .algorithm-stats span,
   .export-select,
   .code-heading,
   .code-window pre,
@@ -2432,7 +2462,6 @@ select {
   .source-actions > span,
   .site-footer,
   .step-list li,
-  .algorithm-stats span,
   .contrast-legend,
   .contrast-legend span,
   .contrast-meta,
@@ -2458,6 +2487,7 @@ select {
   .count-control,
   .count-control output,
   .sort-label,
+  .color-comparison,
   .workbench-nav > button,
   .header-right > a,
   .local-badge,

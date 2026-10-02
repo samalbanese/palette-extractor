@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import sunset from "./assets/sample.svg";
-import { Swatch, type ValueKind } from "./components/Swatch";
+import { type ValueKind } from "./components/Swatch";
+import { SwatchGrid, usePresentation } from "./components/SwatchGrid";
 import { ThemePreview } from "./components/ThemePreview";
+import { Atmosphere } from "./components/Atmosphere";
 import { Icon } from "./components/Icon";
 import {
+  type RGB,
   type SortMode,
   rgbToHex,
   rgbToHsl,
@@ -16,6 +19,7 @@ import { encodePaletteHash } from "./lib/share";
 import { downloadBlob, renderPaletteCard } from "./lib/paletteCard";
 import { useImageSource, type Source } from "./hooks/useImageSource";
 import { usePalette } from "./hooks/usePalette";
+import { useColorSpaceComparison } from "./hooks/useColorSpaceComparison";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useSharedPalette } from "./hooks/useSharedPalette";
 import type { StageResult } from "./components/Stage";
@@ -100,16 +104,37 @@ const tabs = [
 ] as const;
 type Tab = (typeof tabs)[number]["id"];
 
+// On phones the upload button, sample moods and drop/URL row render below the
+// palette instead, so the stage and every swatch fit the first screen.
+const PHONE = "(max-width: 580px)";
+
+// Sizes the dock's hidden inspector row before the first palette; a mid-length
+// color so its values take about as much room as a real one.
+const PLACEHOLDER_COLOR: RGB = { r: 95, g: 146, b: 173 };
+
 export default function App() {
+  // Read during the first render so the controls never paint in the wrong
+  // place, then kept current as the window crosses the breakpoint.
+  const [phone, setPhone] = useState(() => matchMedia(PHONE).matches);
+  useEffect(() => {
+    const media = matchMedia(PHONE);
+    const update = () => setPhone(media.matches);
+    media.addEventListener("change", update);
+    update();
+    return () => media.removeEventListener("change", update);
+  }, []);
   const [valueKind, setValueKind] = useState<ValueKind>("hex");
   const [format, setFormat] = useState<ExportFormat>("css");
   const [activeTab, setActiveTab] = useState<Tab>("context");
-  const [selectedHex, setSelectedHex] = useState<string | null>(null);
+  // A selection lasts while its swatch does, until the next new photo.
+  const [selection, setSelection] = useState<{
+    id: string;
+    photo: number;
+  } | null>(null);
 
   const shared = useSharedPalette((colors) => {
     imageSource.resetForShared();
     palette.loadShared(colors);
-    setSelectedHex(null);
   });
 
   const imageSource = useImageSource({
@@ -126,7 +151,6 @@ export default function App() {
     setLoaded: imageSource.setLoaded,
     setError: imageSource.setError,
     setNotice: copyFeedback.setNotice,
-    setSelectedHex,
   });
 
   const { source, loaded, error, dragging, urlBusy, showUrl, url, fileInput } =
@@ -143,6 +167,12 @@ export default function App() {
     colorSpace,
     changedHexes,
   } = palette;
+  const comparison = useColorSpaceComparison(
+    sorted,
+    palette.detailColorSpace,
+    loaded,
+    changedHexes,
+  );
   const { copied, notice } = copyFeedback;
   const hero = useRef<HTMLImageElement>(null);
   const stageHost = useRef<HTMLDivElement>(null);
@@ -196,9 +226,16 @@ export default function App() {
     [loaded, palette.detail, palette.detailColorSpace, sorted],
   );
 
-  // The inspector falls back to the first color; the swatches must agree.
-  const selected = colors.find((c) => rgbToHex(c) === selectedHex) ?? colors[0];
-  const selectedKey = selected ? rgbToHex(selected) : null;
+  const presentation = usePresentation(sorted, loaded, lockedSet);
+  // The inspector falls back to the first swatch; the swatches must agree.
+  const selectedSwatch =
+    (selection?.photo === presentation.photo &&
+      presentation.swatches.find((swatch) => swatch.id === selection.id)) ||
+    presentation.swatches[0];
+  const selected = selectedSwatch?.color;
+  // Before the first palette arrives the dock keeps its place with a hidden
+  // stand-in color, so nothing below it moves when the palette lands.
+  const inspected = selected ?? PLACEHOLDER_COLOR;
   const showWeights = !!loaded && locked.length === 0;
 
   const copy = (text: string, key: string) => void copyFeedback.copy(text, key);
@@ -216,6 +253,75 @@ export default function App() {
       );
     }
   };
+
+  const uploadButton = (
+    <button
+      className="button primary upload-main"
+      onClick={() => fileInput.current?.click()}
+    >
+      <Icon name="upload" /> Upload image <span className="shortcut">↗</span>
+    </button>
+  );
+  const sourceControls = (
+    <>
+      <div className="sample-row">
+        <span>Try a different mood</span>
+        <div>
+          {samples.map((sample) => (
+            <button
+              key={sample.src}
+              className={source?.src === sample.src ? "active" : ""}
+              aria-label={`Try ${sample.name}`}
+              aria-pressed={source?.src === sample.src}
+              onClick={() => imageSource.chooseSource(sample)}
+            >
+              <img src={sample.src} alt="" />
+              <span>{sample.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="source-actions">
+        <span>Drop an image anywhere or paste from clipboard</span>
+        <button
+          className="text-button"
+          aria-expanded={showUrl}
+          onClick={() => imageSource.setShowUrl((v) => !v)}
+        >
+          <Icon name="link" size={14} /> Use URL
+        </button>
+      </div>
+      {showUrl && (
+        <form
+          className="url-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void imageSource.loadUrl(url);
+          }}
+        >
+          <label htmlFor="image-url">Public image URL</label>
+          <div>
+            <input
+              autoFocus
+              id="image-url"
+              type="url"
+              required
+              placeholder="https://example.com/image.jpg"
+              value={url}
+              onChange={(e) => imageSource.setUrl(e.target.value)}
+            />
+            <button className="button secondary" disabled={urlBusy}>
+              {urlBusy ? "Loading…" : "Load"}
+            </button>
+          </div>
+          <p>
+            Remote images may be fetched through images.weserv.nl. Local uploads
+            stay on your device.
+          </p>
+        </form>
+      )}
+    </>
+  );
 
   return (
     <div className="app-shell">
@@ -258,13 +364,7 @@ export default function App() {
             </h1>
             <p>Find the colors worth keeping. Make something with them.</p>
           </div>
-          <button
-            className="button primary upload-main"
-            onClick={() => fileInput.current?.click()}
-          >
-            <Icon name="upload" /> Upload image{" "}
-            <span className="shortcut">↗</span>
-          </button>
+          {!phone && uploadButton}
         </section>
         <input
           ref={fileInput}
@@ -291,11 +391,38 @@ export default function App() {
           </div>
         )}
         <div className="workspace" id="workspace" aria-busy={busy}>
+          <Atmosphere palette={palette.detail.colors} />
           <section className="source-panel" aria-labelledby="source-heading">
             <div className="section-label">
               <h2 id="source-heading">
                 <span>01</span> The source
               </h2>
+              <fieldset
+                className="colorspace-switch"
+                disabled={!source || busy}
+              >
+                <legend className="sr-only">Color space</legend>
+                <span className="colorspace-options">
+                  <label className={colorSpace === "rgb" ? "active" : ""}>
+                    <input
+                      type="radio"
+                      name="color-space"
+                      checked={colorSpace === "rgb"}
+                      onChange={() => palette.setColorSpace("rgb")}
+                    />
+                    RGB
+                  </label>
+                  <label className={colorSpace === "oklab" ? "active" : ""}>
+                    <input
+                      type="radio"
+                      name="color-space"
+                      checked={colorSpace === "oklab"}
+                      onChange={() => palette.setColorSpace("oklab")}
+                    />
+                    Perceptual
+                  </label>
+                </span>
+              </fieldset>
               <button
                 className="text-button"
                 onClick={() => fileInput.current?.click()}
@@ -372,68 +499,19 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <div className="sample-row">
-              <span>Try a different mood</span>
-              <div>
-                {samples.map((sample) => (
-                  <button
-                    key={sample.src}
-                    className={source?.src === sample.src ? "active" : ""}
-                    aria-label={`Try ${sample.name}`}
-                    aria-pressed={source?.src === sample.src}
-                    onClick={() => imageSource.chooseSource(sample)}
-                  >
-                    <img src={sample.src} alt="" />
-                    <span>{sample.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="source-actions">
-              <span>Drop an image anywhere or paste from clipboard</span>
-              <button
-                className="text-button"
-                aria-expanded={showUrl}
-                onClick={() => imageSource.setShowUrl((v) => !v)}
-              >
-                <Icon name="link" size={14} /> Use URL
-              </button>
-            </div>
-            {showUrl && (
-              <form
-                className="url-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void imageSource.loadUrl(url);
-                }}
-              >
-                <label htmlFor="image-url">Public image URL</label>
-                <div>
-                  <input
-                    autoFocus
-                    id="image-url"
-                    type="url"
-                    required
-                    placeholder="https://example.com/image.jpg"
-                    value={url}
-                    onChange={(e) => imageSource.setUrl(e.target.value)}
-                  />
-                  <button className="button secondary" disabled={urlBusy}>
-                    {urlBusy ? "Loading…" : "Load"}
-                  </button>
-                </div>
-                <p>
-                  Remote images may be fetched through images.weserv.nl. Local
-                  uploads stay on your device.
-                </p>
-              </form>
-            )}
+            {!phone && sourceControls}
           </section>
           <section className="palette-panel" aria-labelledby="palette-heading">
             <div className="section-label">
-              <h2 id="palette-heading">
-                <span>02</span> The palette <b>{colors.length}</b>
-              </h2>
+              <div className="palette-title">
+                <h2 id="palette-heading">
+                  <span>02</span> The palette <b>{colors.length}</b>
+                </h2>
+                <p className="color-comparison">
+                  {comparison &&
+                    `${comparison.changed} of ${comparison.total} colors changed`}
+                </p>
+              </div>
               <div
                 className="value-switch"
                 role="group"
@@ -455,27 +533,22 @@ export default function App() {
               disabled={busy}
             >
               <legend className="sr-only">Extracted colors</legend>
-              <div className={`swatch-grid format-${valueKind}`}>
-                {sorted.map((entry, i) => (
-                  <Swatch
-                    key={`${rgbToHex(entry.color)}-${i}`}
-                    color={entry.color}
-                    index={i}
-                    locked={lockedSet.has(rgbToHex(entry.color))}
-                    weight={total ? entry.population / total : 0}
-                    name={nearestColorName(entry.color)}
-                    onToggleLock={() => palette.toggleLock(entry.color)}
-                    valueKind={valueKind}
-                    onCopy={(text, key) => copy(text, key)}
-                    copied={copied}
-                    selected={selectedKey === rgbToHex(entry.color)}
-                    onSelect={() => setSelectedHex(rgbToHex(entry.color))}
-                    showWeight={showWeights}
-                    canLock={!!source}
-                    changed={changedHexes.has(rgbToHex(entry.color))}
-                  />
-                ))}
-              </div>
+              <SwatchGrid
+                presentation={presentation}
+                valueKind={valueKind}
+                total={total}
+                showWeights={showWeights}
+                lockedSet={lockedSet}
+                canLock={!!source}
+                changedHexes={changedHexes}
+                copied={copied}
+                onCopy={copy}
+                onToggleLock={palette.toggleLock}
+                selectedId={selectedSwatch?.id ?? null}
+                onSelect={(id) =>
+                  setSelection({ id, photo: presentation.photo })
+                }
+              />
             </fieldset>
             <div className="palette-toolbar">
               <div
@@ -514,32 +587,6 @@ export default function App() {
                   <option value="luminance">By lightness</option>
                 </select>
               </label>
-              <fieldset
-                className="colorspace-switch"
-                disabled={!source || busy}
-              >
-                <legend>Color space</legend>
-                <span className="colorspace-options">
-                  <label className={colorSpace === "rgb" ? "active" : ""}>
-                    <input
-                      type="radio"
-                      name="color-space"
-                      checked={colorSpace === "rgb"}
-                      onChange={() => palette.setColorSpace("rgb")}
-                    />
-                    RGB
-                  </label>
-                  <label className={colorSpace === "oklab" ? "active" : ""}>
-                    <input
-                      type="radio"
-                      name="color-space"
-                      checked={colorSpace === "oklab"}
-                      onChange={() => palette.setColorSpace("oklab")}
-                    />
-                    Perceptual
-                  </label>
-                </span>
-              </fieldset>
               {locked.length > 0 && source && (
                 <button
                   className="text-button"
@@ -568,7 +615,9 @@ export default function App() {
               ))}
             </div>
             <p className="palette-hint">
-              {showWeights
+              {/* Keyed to the chosen photo rather than the finished palette, so
+                  the hint already reads right while the first one loads. */}
+              {source && locked.length === 0
                 ? "Bar widths show color-group share of the sampled image."
                 : source
                   ? "Pinned colors stay with you. Distribution is hidden while colors are locked."
@@ -579,61 +628,69 @@ export default function App() {
             </p>
           </section>
         </div>
-        {selected && (
-          <div className="palette-dock">
-            <div className="inspector">
-              <i style={{ background: rgbToHex(selected) }} />
-              <span>{nearestColorName(selected)}</span>
-              {[
-                rgbToHex(selected),
-                formatRgb(selected),
-                formatHsl(rgbToHsl(selected)),
-              ].map((value) => (
-                <button
-                  key={value}
-                  onClick={() => copy(value, `inspector ${value}`)}
-                  aria-label={`Copy ${value} from inspector`}
-                >
-                  <code>
-                    {copied === `inspector ${value}` ? "Copied!" : value}
-                  </code>
-                </button>
-              ))}
-            </div>
-            <div className="dock-actions">
-              <button
-                className="button quiet"
-                onClick={() =>
-                  copy(
-                    location.origin +
-                      location.pathname +
-                      encodePaletteHash(colors),
-                    "share",
-                  )
-                }
-                disabled={busy}
-              >
-                <Icon name={copied === "share" ? "check" : "link"} size={16} />
-                {copied === "share" ? "Link copied" : "Share"}
-              </button>
-              <button
-                className="button quiet"
-                onClick={() => void saveCard()}
-                disabled={busy}
-              >
-                <Icon name="download" size={16} /> Save PNG
-              </button>
-              <button
-                className="button secondary"
-                onClick={() => copy(exportPalette(colors, format), "dock")}
-                disabled={busy}
-              >
-                <Icon name={copied === "dock" ? "check" : "copy"} size={16} />
-                {copied === "dock" ? "Copied" : "Copy palette"}
-              </button>
-            </div>
+        {phone && (
+          <div className="phone-source-controls">
+            {uploadButton}
+            {sourceControls}
           </div>
         )}
+        <div className="palette-dock">
+          <div
+            className={`inspector ${selected ? "" : "is-pending"}`}
+            aria-hidden={!selected || undefined}
+          >
+            <i style={{ background: rgbToHex(inspected) }} />
+            <span>{nearestColorName(inspected)}</span>
+            {[
+              rgbToHex(inspected),
+              formatRgb(inspected),
+              formatHsl(rgbToHsl(inspected)),
+            ].map((value) => (
+              <button
+                key={value}
+                onClick={() => copy(value, `inspector ${value}`)}
+                aria-label={`Copy ${value} from inspector`}
+                disabled={!selected}
+              >
+                <code>
+                  {copied === `inspector ${value}` ? "Copied!" : value}
+                </code>
+              </button>
+            ))}
+          </div>
+          <div className="dock-actions">
+            <button
+              className="button quiet"
+              onClick={() =>
+                copy(
+                  location.origin +
+                    location.pathname +
+                    encodePaletteHash(colors),
+                  "share",
+                )
+              }
+              disabled={busy || !selected}
+            >
+              <Icon name={copied === "share" ? "check" : "link"} size={16} />
+              {copied === "share" ? "Link copied" : "Share"}
+            </button>
+            <button
+              className="button quiet"
+              onClick={() => void saveCard()}
+              disabled={busy || !selected}
+            >
+              <Icon name="download" size={16} /> Save PNG
+            </button>
+            <button
+              className="button secondary"
+              onClick={() => copy(exportPalette(colors, format), "dock")}
+              disabled={busy || !selected}
+            >
+              <Icon name={copied === "dock" ? "check" : "copy"} size={16} />
+              {copied === "dock" ? "Copied" : "Copy palette"}
+            </button>
+          </div>
+        </div>
         <section className="workbench" aria-label="Explore your palette">
           <div
             className="workbench-nav"
@@ -689,9 +746,8 @@ export default function App() {
               {activeTab === "contrast" && <ContrastPanel palette={colors} />}
               {activeTab === "algorithm" && (
                 <PixelSpace
-                  pixels={palette.detail.pixels}
+                  samples={palette.detail.samples}
                   steps={palette.detail.steps}
-                  palette={sorted}
                   colorSpace={palette.detailColorSpace}
                 />
               )}

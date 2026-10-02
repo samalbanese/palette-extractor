@@ -1,0 +1,89 @@
+/* The glow sits under everything in the page's own stacking order, reaching
+   into the page gutters (the same widths as .app-shell's side padding) and a
+   little above and below the workspace. It never adds layout or scrolling. */
+.workspace {
+  position: relative;
+}
+.atmosphere {
+  --bleed-x: 64px;
+  position: absolute;
+  inset: -48px calc(-1 * var(--bleed-x));
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.atmosphere-layer {
+  position: absolute;
+  inset: 0;
+}
+/* Each blob fades to nothing at its own edge, so blobs never meet the
+   container's edge with color left to clip. */
+.atmosphere-layer > i {
+  position: absolute;
+}
+.atmosphere-layer > i:nth-child(1) {
+  left: 0;
+  top: 0;
+  width: 58%;
+  height: 100%;
+}
+.atmosphere-layer > i:nth-child(2) {
+  left: 42%;
+  top: 0;
+  width: 58%;
+  height: 100%;
+}
+.atmosphere-layer > i:nth-child(3) {
+  left: 22%;
+  top: 30%;
+  width: 40%;
+  height: 70%;
+}
+.atmosphere-layer > i:nth-child(4) {
+  left: 58%;
+  top: 8%;
+  width: 34%;
+  height: 62%;
+}
+@media (max-width: 1150px) {
+  .atmosphere {
+    --bleed-x: 36px;
+  }
+}
+@media (max-width: 850px) {
+  .atmosphere {
+    --bleed-x: 26px;
+  }
+}
+/* One column: the blobs stack down the page instead of across it. */
+@media (max-width: 699px) {
+  .atmosphere-layer > i:nth-child(1) {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 52%;
+  }
+  .atmosphere-layer > i:nth-child(2) {
+    left: 0;
+    top: 42%;
+    width: 100%;
+    height: 58%;
+  }
+  .atmosphere-layer > i:nth-child(3) {
+    left: 30%;
+    top: 22%;
+    width: 70%;
+    height: 40%;
+  }
+  .atmosphere-layer > i:nth-child(4) {
+    left: 0;
+    top: 62%;
+    width: 70%;
+    height: 34%;
+  }
+}
+@media (max-width: 580px) {
+  .atmosphere {
+    --bleed-x: 20px;
+  }
+}

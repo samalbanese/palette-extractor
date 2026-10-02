@@ -25,32 +25,27 @@ async function swatchHexes(page: Page): Promise<string[]> {
 }
 
 /**
- * A still picture of the algorithm tab's color cube. With reduced motion the
- * cube draws one frame of the final split, so the picture identifies which
- * image's pixels and boxes are on screen.
+ * A still picture of How it works: its points and box layers once the final
+ * split step is drawn. With reduced motion that step is a single still
+ * frame, so the picture identifies which image's pixels and boxes are on
+ * screen.
  */
 async function algorithmPicture(page: Page): Promise<string> {
   await page.getByRole("tab", { name: "How it works" }).click();
-  await expect(page.locator(".cube-bottomline")).toContainText(
-    /(\d+) \/ \1 steps/,
+  const host = page.locator(".algorithm-renderer");
+  const steps = page.locator(".cube-bottomline");
+  await expect(steps).toContainText(/(\d+) \/ \1 steps/);
+  const final =
+    Number((await steps.textContent())!.match(/\/ (\d+) steps/)![1]) - 1;
+  await expect(host).toHaveAttribute("data-step", String(final));
+  await expect(host).toHaveAttribute("data-drawn-step", String(final));
+  return host.evaluate((el) =>
+    [".trace-points", ".trace-overlay"]
+      .map((selector) =>
+        el.querySelector<HTMLCanvasElement>(selector)!.toDataURL(),
+      )
+      .join(" "),
   );
-  const canvas = page.locator(".algorithm-canvas canvas");
-  let previous = "";
-  // Two identical reads in a row mean the still frame has finished drawing.
-  await expect
-    .poll(
-      async () => {
-        const current = await canvas.evaluate((el: HTMLCanvasElement) =>
-          el.toDataURL(),
-        );
-        const unchanged = current === previous;
-        previous = current;
-        return unchanged;
-      },
-      { intervals: [250] },
-    )
-    .toBe(true);
-  return previous;
 }
 
 for (const [name, expected] of Object.entries(PALETTES)) {
