@@ -1,6 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ready, stageDone, settled } from "./helpers";
-import { accessible, countFrames, host, pointsCanvas } from "./stage-checks";
+import {
+  accessible,
+  afterStageChange,
+  countFrames,
+  host,
+  pointsCanvas,
+} from "./stage-checks";
 
 test("pointer skip is immediate and a copy click retains its action", async ({
   page,
@@ -23,7 +29,22 @@ test("pointer skip is immediate and a copy click retains its action", async ({
   await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
   const button = page.locator(".swatch-info button").first();
   const color = await button.innerText();
-  await button.click();
+  await page.evaluate(() =>
+    window.addEventListener(
+      "pointerdown",
+      () =>
+        (document.body.dataset.copyPhase =
+          document.querySelector<HTMLElement>(
+            ".stage-host",
+          )!.dataset.stagePhase),
+      { once: true, capture: true },
+    ),
+  );
+  // Forced, so waiting for the swatch entrance cannot outlast the intro.
+  await button.click({ force: true });
+  expect(await page.locator("body").getAttribute("data-copy-phase")).toBe(
+    "intro",
+  );
   await expect(host(page)).toHaveAttribute("data-stage-phase", "done");
   await expect(button).toContainText("Copied!");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
@@ -191,20 +212,64 @@ test("same-photo changes keep the cloud on screen and pulse nothing", async ({
     exact: true,
   });
   const rgb = page.getByRole("radio", { name: "RGB", exact: true });
-  for (let i = 0; i < 4; i++) {
-    await (i % 2 ? rgb : perceptual).check();
-    await ready(page);
-    await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
-  }
-  await page.getByRole("button", { name: "More colors" }).click();
-  await ready(page);
-  await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
+  for (let i = 0; i < 4; i++)
+    await afterStageChange(page, () => (i % 2 ? rgb : perceptual).check());
+  await afterStageChange(page, () =>
+    page.getByRole("button", { name: "More colors" }).click(),
+  );
   const counts = await page.evaluate(() => {
     const win = window as unknown as { __pulses: number; __blank: number };
     return { pulses: win.__pulses, blank: win.__blank };
   });
   expect(counts).toEqual({ pulses: 0, blank: 0 });
   expect(await page.locator(".stage-points").count()).toBe(1);
+});
+
+test("the photo fades under the points from the first stage frame", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    new MutationObserver((_, observer) => {
+      const stage = document.querySelector<HTMLElement>(".stage-host");
+      if (!stage?.dataset.stageStartedAt) return;
+      observer.disconnect();
+      const photo = document.querySelector(".source-frame > img")!;
+      document.body.dataset.photoAnimations = String(
+        photo.getAnimations().filter((a) => a.playState === "running").length,
+      );
+    }).observe(document, {
+      subtree: true,
+      attributeFilter: ["data-stage-started-at"],
+    });
+  });
+  await page.goto("/");
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-photo-animations",
+    "0",
+  );
+});
+
+test("an intro hidden while it starts resumes when the tab returns", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const win = window as unknown as { __hidden: boolean };
+    win.__hidden = true;
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => win.__hidden,
+    });
+  });
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  await expect(host(page)).toHaveAttribute("data-stage-loop", "idle");
+  await page.evaluate(() => {
+    (window as unknown as { __hidden: boolean }).__hidden = false;
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/, {
+    timeout: 8000,
+  });
 });
 
 test("changing motion preference during the intro finishes it", async ({

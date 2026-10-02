@@ -2,6 +2,38 @@ import { expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 export const host = (page: Page) => page.locator(".stage-host");
+
+/** Makes a change, then waits for the stage it starts: the old canvas gone,
+    a new one in its place and that stage finished. The host keeps the last
+    finish time until the new stage starts, so waiting on it alone can pass
+    on the previous one. */
+export async function afterStageChange(
+  page: Page,
+  change: () => Promise<void>,
+) {
+  await page
+    .locator(".stage-points")
+    .evaluate((canvas) => canvas.setAttribute("data-replaced", ""));
+  await change();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const canvases = [...document.querySelectorAll(".stage-points")];
+          const stage = document.querySelector<HTMLElement>(".stage-host")!;
+          // Reported whole, so a timeout shows which part never arrived.
+          return {
+            canvases: canvases.map((c) =>
+              c.hasAttribute("data-replaced") ? "old" : "new",
+            ),
+            done: /\d/.test(stage.dataset.stageDoneAt ?? ""),
+            phase: stage.dataset.stagePhase,
+          };
+        }),
+      { timeout: 15000 },
+    )
+    .toEqual({ canvases: ["new"], done: true, phase: "done" });
+}
 export async function capability(page: Page, expected: boolean) {
   expect(
     await page.evaluate(

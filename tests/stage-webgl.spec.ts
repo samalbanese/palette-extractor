@@ -1,10 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { capability, pointsCanvas, host } from "./stage-checks";
-import { ready, stageDone } from "./helpers";
+import {
+  afterStageChange,
+  capability,
+  pointsCanvas,
+  host,
+} from "./stage-checks";
+import { stageDone } from "./helpers";
 
 test("same-photo changes release the contexts they replace", async ({
   page,
 }) => {
+  // Five software-rendered stages in a row.
+  test.slow();
   await page.addInitScript(() => {
     const contexts: WebGL2RenderingContext[] = [];
     (window as unknown as { __contexts: typeof contexts }).__contexts =
@@ -30,11 +37,10 @@ test("same-photo changes release the contexts they replace", async ({
   await page.goto("/");
   await expect(host(page)).toHaveAttribute("data-stage-mode", "webgl");
   await stageDone(page);
-  for (const name of ["Perceptual", "RGB", "Perceptual", "RGB"]) {
-    await page.getByRole("radio", { name, exact: true }).check();
-    await ready(page);
-    await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
-  }
+  for (const name of ["Perceptual", "RGB", "Perceptual", "RGB"])
+    await afterStageChange(page, () =>
+      page.getByRole("radio", { name, exact: true }).check(),
+    );
   const counts = await page.evaluate(() => {
     const contexts = (
       window as unknown as { __contexts: WebGL2RenderingContext[] }
@@ -60,6 +66,9 @@ test("context loss replaces WebGL with a fresh painted canvas", async ({
   await page.goto("/");
   await expect(host(page)).toHaveAttribute("data-stage-mode", "webgl");
   await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  // The WebGL path itself draws, not only the painter that replaces it.
+  await expect(host(page)).toHaveAttribute("data-stage-started-at", /\d/);
+  expect((await pointsCanvas(page)).drawn).toBeGreaterThanOrEqual(500);
   await page.locator(".stage-points").evaluate((canvas: HTMLCanvasElement) => {
     canvas.dataset.oldCanvas = "true";
     const extension = canvas

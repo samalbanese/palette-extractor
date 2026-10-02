@@ -70,8 +70,7 @@ export default function Stage({
     let length = SHORT_INTRO_MS,
       done = false,
       launched = false;
-    let wasActive = false,
-      started = false;
+    let started = false;
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = media.matches;
     const quality = createQualityMonitor();
@@ -307,6 +306,9 @@ export default function Stage({
       delete parent.dataset.stageStartedAt;
       delete parent.dataset.stageDoneAt;
       parent.dataset.stagePhase = "intro";
+      // The photo's own reveal animation would override the fade below the
+      // points, so it ends as the stage takes over.
+      photo.getAnimations().forEach((animation) => animation.finish());
       // A change to the same photo has no new colors to deliver.
       if (!replay) launched = true;
       if (reduced || !replay || viewRef.current === "photo") markDone(true);
@@ -319,11 +321,11 @@ export default function Stage({
       refresh();
     };
     const finishFlight = () => flights?.finishAll();
+    // Coming back always refreshes: a stage that started while hidden never
+    // had a loop to resume, and refresh only runs one when the stage is live.
     const visibility = () => {
-      if (document.hidden) {
-        wasActive = !!frame;
-        stop();
-      } else if (wasActive) refresh();
+      if (document.hidden) stop();
+      else refresh();
     };
     const intersection = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
