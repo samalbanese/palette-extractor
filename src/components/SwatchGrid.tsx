@@ -16,7 +16,7 @@ import {
   settledAt,
   type ColorTimeline,
 } from "../lib/morph";
-import { nearestColorName } from "../lib/names";
+import { paletteColorNames } from "../lib/names";
 import { Swatch, type ValueKind } from "./Swatch";
 
 export interface PaletteEntry {
@@ -303,7 +303,9 @@ export function SwatchGrid({
               index={i}
               locked={lockedSet.has(hex)}
               weight={total ? swatch.population / total : 0}
-              name={nearestColorName(swatch.color)}
+              name={
+                paletteColorNames(presentation.swatches.map((s) => s.color))[i]
+              }
               onToggleLock={() => onToggleLock(swatch.color)}
               valueKind={valueKind}
               onCopy={onCopy}
