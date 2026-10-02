@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { ready } from "./helpers";
+import { imageSize, ready } from "./helpers";
 
 test("the identity preview and the contrast tab show the same ratio for the same pair", async ({
   page,
@@ -360,4 +360,103 @@ test.describe("on a touch phone", () => {
     );
     expect(hit).toBe(true);
   });
+});
+
+const SITE = "https://palette-extractor.samalbanese.workers.dev/";
+const PREVIEW_TAGS = [
+  "og:type",
+  "og:site_name",
+  "og:url",
+  "og:title",
+  "og:description",
+  "og:image",
+  "og:image:alt",
+  "og:image:width",
+  "og:image:height",
+  "twitter:card",
+  "twitter:title",
+  "twitter:description",
+  "twitter:image",
+  "twitter:image:alt",
+];
+
+test("link previews: every Open Graph and Twitter tag is present and the image is real", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/");
+  const meta: Record<string, string> = await page.evaluate(() =>
+    Object.fromEntries(
+      Array.from(
+        document.querySelectorAll("meta[property], meta[name]"),
+        (m) => [
+          m.getAttribute("property") ?? m.getAttribute("name"),
+          m.getAttribute("content") ?? "",
+        ],
+      ),
+    ),
+  );
+  for (const key of PREVIEW_TAGS) {
+    expect(meta[key], key).toBeTruthy();
+    expect(meta[key], `${key} has an em dash`).not.toContain("\u2014");
+  }
+  expect(meta["twitter:card"]).toBe("summary_large_image");
+  expect(meta["og:url"]).toBe(SITE);
+  expect(meta["og:image"].startsWith(SITE)).toBe(true);
+  expect(meta["twitter:image"]).toBe(meta["og:image"]);
+
+  const response = await request.get(new URL(meta["og:image"]).pathname);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toMatch(/^image\/(png|jpeg)/);
+  const bytes = await response.body();
+  expect(bytes.length).toBeLessThan(300_000);
+  expect(imageSize(bytes)).toEqual({ width: 1200, height: 630 });
+  expect(meta["og:image:width"]).toBe("1200");
+  expect(meta["og:image:height"]).toBe("630");
+});
+
+test("the manifest and touch icon resolve to real PNGs at their declared sizes", async ({
+  page,
+  request,
+}) => {
+  // Unknown paths fall back to the app page with a 200, so status alone
+  // proves nothing; every check below decodes the actual bytes.
+  const missing = await request.get("/no-such-icon.png");
+  expect(missing.headers()["content-type"]).toContain("text/html");
+
+  await page.goto("/");
+  const manifestHref = await page
+    .locator('link[rel="manifest"]')
+    .getAttribute("href");
+  const touchHref = await page
+    .locator('link[rel="apple-touch-icon"]')
+    .getAttribute("href");
+  const themeColor = await page
+    .locator('meta[name="theme-color"]')
+    .getAttribute("content");
+
+  const manifest = await (await request.get(manifestHref!)).json();
+  expect(manifest).toMatchObject({
+    name: "Palette Extractor",
+    short_name: "Palette",
+    start_url: "/",
+    display: "standalone",
+    theme_color: themeColor,
+    background_color: themeColor,
+  });
+  const icons: { src: string; sizes: string }[] = [
+    ...manifest.icons,
+    { src: touchHref!, sizes: "180x180" },
+  ];
+  expect(icons.map((i) => i.sizes).sort()).toEqual([
+    "180x180",
+    "192x192",
+    "512x512",
+  ]);
+  for (const icon of icons) {
+    const response = await request.get(icon.src);
+    expect(response.headers()["content-type"], icon.src).toBe("image/png");
+    const { width, height } = imageSize(await response.body());
+    expect(`${width}x${height}`, icon.src).toBe(icon.sizes);
+  }
 });
