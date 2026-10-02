@@ -50,7 +50,7 @@ for (const viewport of [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },
 ])
-  test(`the Golden dunes cloud fills the stage at ${viewport.width} x ${viewport.height}`, async ({
+  test(`the built-in photos' clouds fill the stage at ${viewport.width} x ${viewport.height}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
@@ -58,24 +58,53 @@ for (const viewport of [
     await ready(page);
     await stageDone(page);
     await expect(host(page)).toHaveAttribute("data-stage-mode", mode(testInfo));
-    await expect(page.locator(".image-caption")).toContainText("Golden dunes");
 
-    for (const name of ["RGB", "Perceptual"] as const) {
-      if (name === "Perceptual")
+    // Golden dunes in RGB, then Perceptual; Forest floor in Perceptual, then
+    // RGB. Each change replaces the stage.
+    const views = [
+      { photo: "Golden dunes", space: "RGB" },
+      { photo: "Golden dunes", space: "Perceptual" },
+      { photo: "Forest floor", space: "Perceptual" },
+      { photo: "Forest floor", space: "RGB" },
+    ] as const;
+    let previous: (typeof views)[number] | undefined;
+    for (const view of views) {
+      if (previous && previous.photo !== view.photo)
         await afterStageChange(page, () =>
-          page.getByRole("radio", { name, exact: true }).check(),
+          page.getByRole("button", { name: `Try ${view.photo}` }).click(),
         );
+      else if (previous && previous.space !== view.space)
+        await afterStageChange(page, () =>
+          page.getByRole("radio", { name: view.space, exact: true }).check(),
+        );
+      previous = view;
+      await expect(page.locator(".image-caption")).toContainText(view.photo);
       await expect(host(page)).toHaveAttribute(
         "data-stage-space",
-        name === "RGB" ? "rgb" : "oklab",
+        view.space === "RGB" ? "rgb" : "oklab",
       );
+      const label = `${view.photo} ${view.space}`;
       const box = await paintedBounds(page);
-      const side = Math.min(box.width, box.height);
-      const largest = Math.max(box.right - box.left, box.bottom - box.top);
-      console.log(
-        `STAGE_FIT mode=${mode(testInfo)} ${viewport.width}x${viewport.height} ${name} ${JSON.stringify(box)} cover=${(largest / side).toFixed(3)}`,
+      const spanX = box.right - box.left,
+        spanY = box.bottom - box.top;
+      // Coverage on the frame's own axes, inside the margin: the fit fills
+      // one of them to the margin at some yaw, so at rest the larger share
+      // is the one to watch.
+      const cover = Math.max(
+        spanX / (box.width - 44),
+        spanY / (box.height - 44),
       );
-      expect(largest / side, `${name} coverage`).toBeGreaterThanOrEqual(0.45);
+      const side = Math.max(spanX, spanY) / Math.min(box.width, box.height);
+      console.log(
+        `STAGE_FIT mode=${mode(testInfo)} ${viewport.width}x${viewport.height} ${label} ${JSON.stringify(box)} cover=${cover.toFixed(3)} side=${side.toFixed(3)}`,
+      );
+      if (view.photo === "Golden dunes") {
+        expect(cover, `${label} coverage`).toBeGreaterThanOrEqual(0.45);
+        expect(
+          side,
+          `${label} share of the shorter side`,
+        ).toBeGreaterThanOrEqual(0.45);
+      }
       // Points keep the 22 px margin, less their own radius.
       const margin = Math.min(
         box.left,
@@ -83,6 +112,6 @@ for (const viewport of [
         box.width - box.right,
         box.height - box.bottom,
       );
-      expect(margin, `${name} margin`).toBeGreaterThanOrEqual(18);
+      expect(margin, `${label} margin`).toBeGreaterThanOrEqual(18);
     }
   });
