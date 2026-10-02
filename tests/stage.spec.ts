@@ -222,7 +222,16 @@ async function freezeAt(page: Page, phase: string) {
   // The frame already queued draws once more, then the loop ends.
   await page.clock.runFor(16);
   await page.clock.resume();
-  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()));
+  // An animation started in that last frame is still pending, and a pending
+  // pause only fixes its time on the next frame, so wait for each to settle.
+  await page.evaluate(() =>
+    Promise.all(
+      document.getAnimations().map((a) => {
+        a.pause();
+        return a.ready;
+      }),
+    ),
+  );
   await expect(host(page)).toHaveAttribute("data-stage-step", phase);
 }
 const still = (page: Page) =>
