@@ -1,0 +1,10 @@
+{
+  "elements": [
+    "div.algorithm-canvas > div.cube-topline > span",
+    "div.image-caption > span > a",
+    "div.source-frame > div.image-caption > span",
+    "div.source-frame > div.shared-source > button.button",
+    "div.source-frame > div.shared-source > h3",
+    "div.source-frame > div.shared-source > p"
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "text": [
+    {
+      "element": "div.palette-dock > div.dock-actions > button.button",
+      "ink": "rgb(189, 192, 193)",
+      "layers": []
+    },
+    {
+      "element": "div.palette-dock > div.inspector > span",
+      "ink": "rgb(181, 184, 185)",
+      "layers": []
+    },
+    {
+      "element": "div.palette-title > h2 > b",
+      "ink": "rgb(170, 170, 170)",
+      "layers": []
+    },
+    {
+      "element": "div.palette-title > h2 > span",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "div.palette-toolbar > div.count-control > button",
+      "ink": "rgb(225, 226, 221)",
+      "layers": []
+    },
+    {
+      "element": "div.palette-toolbar > div.count-control > output",
+      "ink": "rgb(238, 238, 238)",
+      "layers": []
+    },
+    {
+      "element": "div.palette-toolbar > div.count-control > span",
+      "ink": "rgb(172, 175, 176)",
+      "layers": []
+    },
+    {
+      "element": "div.section-label > div.palette-title > h2",
+      "ink": "rgb(241, 240, 235)",
+      "layers": []
+    },
+    {
+      "element": "div.section-label > div.palette-title > p.color-comparison",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "div.section-label > h2 > span",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "div.swatch-info > button > code",
+      "ink": "rgb(231, 230, 226)",
+      "layers": []
+    },
+    {
+      "element": "div.swatch-motion > div.swatch-info > span",
+      "ink": "rgb(169, 172, 173)",
+      "layers": []
+    },
+    {
+      "element": "div.workspace > section.palette-panel > p.palette-hint",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "section.intro > div > p",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "section.palette-panel > div.palette-toolbar > label.sort-label",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "section.source-panel > div.sample-row > span",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    },
+    {
+      "element": "section.source-panel > div.section-label > button.text-button",
+      "ink": "rgb(184, 186, 187)",
+      "layers": []
+    },
+    {
+      "element": "section.source-panel > div.section-label > h2",
+      "ink": "rgb(241, 240, 235)",
+      "layers": []
+    },
+    {
+      "element": "section.source-panel > div.source-actions > button.text-button",
+      "ink": "rgb(184, 186, 187)",
+      "layers": []
+    },
+    {
+      "element": "section.source-panel > div.source-actions > span",
+      "ink": "rgb(161, 163, 164)",
+      "layers": []
+    }
+  ],
+  "nonText": [
+    {
+      "element": "article.swatch > div.swatch-motion > div.swatch-color",
+      "color": "rgb(226, 184, 105)",
+      "alpha": 1
+    },
+    {
+      "element": "article.swatch > div.swatch-motion > div.swatch-color",
+      "color": "rgb(241, 238, 232)",
+      "alpha": 1
+    },
+    {
+      "element": "div > div.app-shell > a.skip-link",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.palette-dock > div.dock-actions > button.button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.palette-dock > div.inspector > button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.palette-toolbar > div.count-control > button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.palette-toolbar > label.sort-label > select",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.sample-row > div > button.active",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.sample-row > div > button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "div.swatch-motion > div.swatch-info > button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "main > div.phone-source-controls > button.button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "main > section.intro > button.button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "section.source-panel > div.section-label > button.text-button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    },
+    {
+      "element": "section.source-panel > div.source-actions > button.text-button",
+      "color": "rgb(228, 195, 151)",
+      "alpha": 1
+    }
+  ]
+}
