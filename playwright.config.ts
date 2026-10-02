@@ -26,7 +26,13 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", testIgnore: /stage-(prod|webgl|no-webgl)\.spec\.ts/ },
+    {
+      name: "chromium",
+      testIgnore: [
+        /stage-(prod|webgl|no-webgl)\.spec\.ts/,
+        /\.modes\.spec\.ts$/,
+      ],
+    },
     {
       name: "stage-prod",
       testMatch: "stage-prod.spec.ts",
@@ -49,6 +55,32 @@ export default defineConfig({
     {
       name: "stage-no-webgl",
       testMatch: "stage-no-webgl.spec.ts",
+      use: {
+        launchOptions: {
+          executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+          args: ["--disable-webgl", "--disable-webgl2"],
+        },
+      },
+    },
+    // A spec named *.modes.spec.ts runs once with WebGL and once with the 2D
+    // fallback; testInfo.project.name says which.
+    {
+      name: "modes-webgl",
+      testMatch: /\.modes\.spec\.ts$/,
+      use: {
+        launchOptions: {
+          executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+          args: [
+            "--use-gl=angle",
+            "--use-angle=swiftshader",
+            "--enable-unsafe-swiftshader",
+          ],
+        },
+      },
+    },
+    {
+      name: "modes-no-webgl",
+      testMatch: /\.modes\.spec\.ts$/,
       use: {
         launchOptions: {
           executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
