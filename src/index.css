@@ -1164,7 +1164,6 @@ select {
 }
 .brand-nav > span {
   font-size: 8px;
-  opacity: 0.85;
 }
 .brand-body {
   display: grid;
