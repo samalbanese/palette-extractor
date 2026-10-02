@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { imageSize, ready } from "./helpers";
+import { imageSize, ready, svg } from "./helpers";
 
 test("the identity preview and the contrast tab show the same ratio for the same pair", async ({
   page,
@@ -106,6 +106,33 @@ test("with reduced motion the cube is static and offers no animation control", a
   await page.getByRole("tab", { name: "How it works" }).click();
   await expect(page.getByText("STATIC VIEW", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /animation/ })).toHaveCount(0);
+});
+
+test("with reduced motion the animation control never appears, not even for a frame", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => {
+    (window as unknown as { sawControl: boolean }).sawControl = false;
+    new MutationObserver(() => {
+      for (const b of document.querySelectorAll("button"))
+        if (/animation/.test(b.textContent ?? ""))
+          (window as unknown as { sawControl: boolean }).sawControl = true;
+    }).observe(document, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  });
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("tab", { name: "How it works" }).click();
+  await expect(page.getByText("STATIC VIEW", { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { sawControl: boolean }).sawControl,
+    ),
+  ).toBe(false);
 });
 
 const cssColorToHex = (value: string) =>
@@ -260,6 +287,50 @@ const METADATA =
   ".swatch-select, .section-label h2 > span, .section-label h2 b, .tab-tag, .step-list b, .cube-topline, .cube-bottomline, .cube-legend, .code-heading, .image-caption a";
 const ILLUSTRATION = ".sr-only, .brand-preview, .low-contrast-art";
 
+// Every visible text node below its floor, plus small form controls,
+// clipped swatch values and horizontal scroll.
+function floorProblems(page: Page) {
+  return page.evaluate(
+    ({ METADATA, ILLUSTRATION }) => {
+      const out: string[] = [];
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const text = n.textContent!.trim();
+        const el = n.parentElement!;
+        if (!text || el.closest(ILLUSTRATION)) continue;
+        const box = el.getBoundingClientRect();
+        if (!box.width || !box.height) continue;
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        const min = el.closest(METADATA) ? 11 : 13;
+        if (size < min)
+          out.push(`${size}px "${text.slice(0, 24)}" (${el.className})`);
+      }
+      for (const control of document.querySelectorAll(
+        "select, input[type=url]",
+      ))
+        if (
+          control.getBoundingClientRect().width &&
+          parseFloat(getComputedStyle(control).fontSize) < 13
+        )
+          out.push(
+            `${control.tagName.toLowerCase()} ${control.getAttribute("aria-label") ?? ""}`,
+          );
+      for (const button of document.querySelectorAll(
+        ".swatch-info button, .inspector button",
+      ))
+        if (button.scrollWidth > button.clientWidth + 0.5)
+          out.push(`clipped "${button.textContent!.trim()}"`);
+      if (document.documentElement.scrollWidth > innerWidth)
+        out.push("horizontal scroll");
+      return out;
+    },
+    { METADATA, ILLUSTRATION },
+  );
+}
+
 for (const width of [1440, 1024, 900, 851]) {
   test(`desktop text stays at 13px or more at ${width}px, values stay whole`, async ({
     page,
@@ -274,47 +345,52 @@ for (const width of [1440, 1024, 900, 851]) {
       await page.getByRole("tab", { name: tab }).click();
       for (const format of ["HEX", "RGB", "HSL"]) {
         await page.getByRole("button", { name: format, exact: true }).click();
-        const found = await page.evaluate(
-          ({ METADATA, ILLUSTRATION }) => {
-            const out: string[] = [];
-            const walker = document.createTreeWalker(
-              document.body,
-              NodeFilter.SHOW_TEXT,
-            );
-            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-              const text = n.textContent!.trim();
-              const el = n.parentElement!;
-              if (!text || el.closest(ILLUSTRATION)) continue;
-              const box = el.getBoundingClientRect();
-              if (!box.width || !box.height) continue;
-              const size = parseFloat(getComputedStyle(el).fontSize);
-              const min = el.closest(METADATA) ? 11 : 13;
-              if (size < min)
-                out.push(`${size}px "${text.slice(0, 24)}" (${el.className})`);
-            }
-            for (const select of document.querySelectorAll("select"))
-              if (
-                select.getBoundingClientRect().width &&
-                parseFloat(getComputedStyle(select).fontSize) < 13
-              )
-                out.push(`select ${select.getAttribute("aria-label")}`);
-            for (const button of document.querySelectorAll(
-              ".swatch-info button, .inspector button",
-            ))
-              if (button.scrollWidth > button.clientWidth + 0.5)
-                out.push(`clipped "${button.textContent!.trim()}"`);
-            if (document.documentElement.scrollWidth > innerWidth)
-              out.push("horizontal scroll");
-            return out;
-          },
-          { METADATA, ILLUSTRATION },
+        (await floorProblems(page)).forEach((p) =>
+          problems.add(`${tab}/${format}: ${p}`),
         );
-        found.forEach((p) => problems.add(`${tab}/${format}: ${p}`));
       }
     }
     expect([...problems]).toEqual([]);
   });
 }
+
+test("the desktop text floor holds with motion on, after an upload, in the URL form and on a shared link", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await ready(page);
+  const problems = new Set<string>();
+  const scan = async (state: string) =>
+    (await floorProblems(page)).forEach((p) => problems.add(`${state}: ${p}`));
+
+  await page.getByRole("tab", { name: "How it works" }).click();
+  await expect(
+    page.getByRole("button", { name: "Stop animation", exact: true }),
+  ).toBeVisible();
+  await scan("animation");
+
+  await page.locator("input[type=file]").setInputFiles({
+    name: "upload.svg",
+    mimeType: "image/svg+xml",
+    buffer: svg("#2a6f97"),
+  });
+  await ready(page);
+  await expect(page.locator(".image-caption")).toContainText("upload.svg");
+  await scan("upload");
+
+  await page.getByRole("button", { name: "Use URL", exact: true }).click();
+  await expect(page.getByLabel("Public image URL")).toBeVisible();
+  await scan("url form");
+
+  await page.goto("/#p=2a6f97.f2e8cf.bc4749");
+  await page.reload();
+  await ready(page);
+  await expect(page.locator(".shared-source")).toBeVisible();
+  await scan("shared link");
+
+  expect([...problems]).toEqual([]);
+});
 
 test("desktop lock and copy controls are large and clearly visible", async ({
   page,

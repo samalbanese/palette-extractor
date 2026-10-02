@@ -2395,6 +2395,14 @@ select {
   .local-badge,
   .image-caption,
   .image-caption > span,
+  .image-caption > span + span,
+  .animation-controls button,
+  .url-form label,
+  .url-form input,
+  .url-form p,
+  .shared-source > p,
+  .processing-badge,
+  .error-banner,
   .code-window pre,
   select {
     font-size: 13px;

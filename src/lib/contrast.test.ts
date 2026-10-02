@@ -75,6 +75,26 @@ describe("formatRatio", () => {
     }
     expect(contradictions).toEqual([]);
   });
+
+  it("never rounds a real color pair a hair under a threshold up to it", () => {
+    const rgb = (hex: string) => ({
+      r: parseInt(hex.slice(1, 3), 16),
+      g: parseInt(hex.slice(3, 5), 16),
+      b: parseInt(hex.slice(5, 7), 16),
+    });
+    // Each pair is within 1e-11 below the threshold.
+    const nearMisses: [string, string, string][] = [
+      ["#c83cc1", "#1b0322", "4.49"],
+      ["#2671e5", "#060201", "4.49"],
+      ["#6aae58", "#05102b", "6.99"],
+      ["#c0e29a", "#302ab0", "6.99"],
+    ];
+    for (const [fg, bg, shown] of nearMisses)
+      expect(formatRatio(contrastRatio(rgb(fg), rgb(bg))), `${fg}/${bg}`).toBe(
+        shown,
+      );
+    expect(formatRatio(4.499999999999)).toBe("4.49");
+  });
 });
 
 describe("contrast ratios on screen", () => {

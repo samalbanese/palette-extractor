@@ -78,7 +78,11 @@ export function PixelSpace({
 }: PixelSpaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [replay, setReplay] = useState(0);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  // Read the preference on the first render so reduced-motion visitors never
+  // get a frame of animation or its controls before the effect below runs.
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(true);
   const [activeStep, setActiveStep] = useState(0);
