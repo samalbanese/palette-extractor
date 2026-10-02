@@ -65,13 +65,23 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     return files;
   };
 
-  const scripts = tagsOf(html, "script")
-    .filter((tag) => attr(tag, "type") === "module")
-    .map((tag) => attr(tag, "src"))
-    .filter(Boolean);
+  // Browsers match type in any case and treat rel as a list of tokens.
+  const modules = tagsOf(html, "script").filter(
+    (tag) => attr(tag, "type")?.trim().toLowerCase() === "module",
+  );
+  const scripts = modules.map((tag) => attr(tag, "src")).filter(Boolean);
   if (!scripts.length) problems.push("index.html has no module script");
+  if (scripts.length < modules.length)
+    problems.push(
+      "index.html has an inline module script; its imports cannot be measured",
+    );
   const preloads = tagsOf(html, "link")
-    .filter((tag) => attr(tag, "rel") === "modulepreload")
+    .filter((tag) =>
+      (attr(tag, "rel") ?? "")
+        .toLowerCase()
+        .split(/[\t\n\f\r ]+/)
+        .includes("modulepreload"),
+    )
     .map((tag) => attr(tag, "href"))
     .filter(Boolean);
   const htmlFiles = [...scripts, ...preloads].map(canonical);

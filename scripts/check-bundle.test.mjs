@@ -157,6 +157,45 @@ describe("checkBundle", () => {
     ]);
   });
 
+  it("reads type and rel the way browsers do: any case, rel as a token list", () => {
+    const dir = makeDist({
+      html: entryHtml(
+        `<script type="MODULE" src="/assets/extra-b.js"></script>` +
+          `<link rel=" MODULEPRELOAD " href="/assets/pre-c.js">` +
+          `<link rel="modulepreload prefetch" href="/assets/pre-d.js">`,
+      ),
+      manifest: entryManifest(),
+      files: {
+        "assets/index-a.js": 1 * KB,
+        "assets/extra-b.js": 1 * KB,
+        "assets/pre-c.js": 1 * KB,
+        "assets/pre-d.js": 1 * KB,
+      },
+    });
+    expect(
+      row(checkBundle(dir, budgets), "first-load JS").files.sort(),
+    ).toEqual([
+      "assets/extra-b.js",
+      "assets/index-a.js",
+      "assets/pre-c.js",
+      "assets/pre-d.js",
+      "assets/quantize.worker-abc.js",
+    ]);
+  });
+
+  it("fails on an inline module script, whose imports it cannot measure", () => {
+    const dir = makeDist({
+      html: entryHtml(
+        `<script type="module">import "/assets/extra-b.js";</script>`,
+      ),
+      manifest: entryManifest(),
+      files: { "assets/index-a.js": 1 * KB, "assets/extra-b.js": 1 * KB },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toMatch(/inline module script/);
+  });
+
   it("follows the imports of an entry referenced by a relative path", () => {
     const dir = makeDist({
       html:
