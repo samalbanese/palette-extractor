@@ -2547,3 +2547,47 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* A palette never ends on a lone swatch. Where three fit across, a count
+   one past a full row (4, 7, 10) splits the last four swatches into two
+   rows of two on a six-track grid. Where two fit across, an odd count gives
+   the first swatch the whole top row. Swatches only ever widen, so values
+   that fit before still fit, and the number of rows does not change. */
+@media (max-width: 580px), (min-width: 851px) {
+  .swatch-grid.format-hex:has(> .swatch:nth-child(3n + 4):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .swatch-grid.format-hex:has(> .swatch:nth-child(3n + 4):last-child)
+    > .swatch {
+    grid-column: span 2;
+  }
+  .swatch-grid.format-hex:has(> .swatch:nth-child(3n + 4):last-child)
+    > .swatch:nth-last-child(-n + 4) {
+    grid-column: span 3;
+  }
+}
+@media (min-width: 1280px) {
+  .swatch-grid:has(> .swatch:nth-child(3n + 4):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .swatch-grid:has(> .swatch:nth-child(3n + 4):last-child) > .swatch {
+    grid-column: span 2;
+  }
+  .swatch-grid:has(> .swatch:nth-child(3n + 4):last-child)
+    > .swatch:nth-last-child(-n + 4) {
+    grid-column: span 3;
+  }
+}
+@media (min-width: 581px) and (max-width: 850px) {
+  .swatch-grid:has(> .swatch:nth-child(2n + 3):last-child)
+    > .swatch:first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 580px), (min-width: 851px) and (max-width: 1279px) {
+  .swatch-grid.format-rgb:has(> .swatch:nth-child(2n + 3):last-child)
+    > .swatch:first-child,
+  .swatch-grid.format-hsl:has(> .swatch:nth-child(2n + 3):last-child)
+    > .swatch:first-child {
+    grid-column: 1 / -1;
+  }
+}

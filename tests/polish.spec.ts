@@ -329,3 +329,44 @@ for (const width of [390, 768, 1440]) {
     expect(farthest).toBeLessThanOrEqual(radius - 5);
   });
 }
+
+for (const width of [768, 1440]) {
+  test(`no count from 4 to 10 leaves a lone swatch on the last row at ${width}px`, async ({
+    page,
+  }) => {
+    test.slow();
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+    await ready(page);
+    for (const count of [4, 5, 6, 7, 8, 9, 10]) {
+      await setCount(page, count);
+      await settled(page);
+      const rows = await page.locator(".swatch").evaluateAll((swatches) => {
+        const tops = new Map<number, number>();
+        for (const swatch of swatches) {
+          const top = Math.round(swatch.getBoundingClientRect().top);
+          tops.set(top, (tops.get(top) ?? 0) + 1);
+        }
+        return [...tops.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]);
+      });
+      expect(
+        rows.reduce((a, b) => a + b),
+        `${count}`,
+      ).toBe(count);
+      expect(
+        rows.at(-1),
+        `${count} colors: rows ${rows.join("/")}`,
+      ).toBeGreaterThanOrEqual(2);
+      // Values stay whole in every swatch.
+      const clipped = await page
+        .locator(".swatch-info button")
+        .evaluateAll(
+          (buttons) =>
+            buttons.filter((b) => b.scrollWidth > b.clientWidth + 0.5).length,
+        );
+      expect(clipped, `${count} colors`).toBe(0);
+    }
+    await settled(page);
+    await axeClean(page);
+  });
+}
