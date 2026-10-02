@@ -229,23 +229,52 @@ test("a stage start that never finishes still fills every swatch in time", async
   expect((await read()).allFilledAt!).toBeLessThanOrEqual(3400 + 50);
 });
 
-test("a photo that cannot be decoded for the stage fills every swatch", async ({
+test("a photo that cannot be decoded for the stage fills every swatch at once", async ({
   page,
 }) => {
   await page.addInitScript(() => {
     const original = HTMLImageElement.prototype.decode;
     HTMLImageElement.prototype.decode = function (this: HTMLImageElement) {
-      if (document.querySelector(".stage-surface"))
-        return Promise.reject(new DOMException("broken", "EncodingError"));
-      return original.call(this);
+      if (!document.querySelector(".stage-surface")) return original.call(this);
+      (window as unknown as { __failedAt: number }).__failedAt ??=
+        performance.now();
+      return Promise.reject(new DOMException("broken", "EncodingError"));
     };
   });
   const read = await watchSwatches(page);
   await page.goto("/");
   await expect(page.locator(".stage-surface")).toHaveCount(1);
   await allFilled(read);
-  const seen = await read();
-  expect(seen.allFilledAt!).toBeLessThanOrEqual(3400);
+  const failedAt = await page.evaluate(
+    () => (window as unknown as { __failedAt: number }).__failedAt,
+  );
+  // Filled on the failure itself, not by the later deadline.
+  expect((await read()).allFilledAt! - failedAt).toBeLessThanOrEqual(100);
+});
+
+test("a stage with neither renderer available fills every swatch at once", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      ...args: Parameters<HTMLCanvasElement["getContext"]>
+    ) {
+      if (!this.matches(".stage-points")) return original.apply(this, args);
+      (window as unknown as { __failedAt: number }).__failedAt ??=
+        performance.now();
+      return null;
+    } as HTMLCanvasElement["getContext"];
+  });
+  const read = await watchSwatches(page);
+  await page.goto("/");
+  await allFilled(read);
+  const failedAt = await page.evaluate(
+    () => (window as unknown as { __failedAt?: number }).__failedAt,
+  );
+  expect(failedAt).toBeDefined();
+  expect((await read()).allFilledAt! - failedAt!).toBeLessThanOrEqual(100);
 });
 
 test("an intro in a hidden tab still fills by its planned end", async ({
