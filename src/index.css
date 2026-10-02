@@ -720,12 +720,20 @@ code {
   place-items: center;
   color: inherit;
   border-radius: 50%;
-  opacity: 0.65;
+  opacity: 0.9;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+/* Widen the touch target without growing the visible circle. */
+.lock-button::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
 }
 .lock-button:hover,
 .lock-button.is-locked {
   opacity: 1;
-  background: color-mix(in srgb, currentColor 13%, transparent);
+  background: color-mix(in srgb, currentColor 22%, transparent);
 }
 .swatch-info {
   padding: 9px 1px 0;
@@ -746,7 +754,7 @@ code {
   justify-content: space-between;
   gap: 3px;
   text-align: left;
-  min-height: 24px;
+  min-height: 32px;
   font-size: 12px;
   color: #e7e6e2;
 }
@@ -756,7 +764,7 @@ code {
   letter-spacing: -0.2px;
 }
 .swatch-info button svg {
-  color: #9c9e9f;
+  color: #c9cbcc;
 }
 .palette-toolbar {
   display: flex;
@@ -2343,5 +2351,78 @@ select {
   .swatch-grid.format-rgb .swatch-info button svg,
   .swatch-grid.format-hsl .swatch-info button svg {
     width: 9px;
+  }
+}
+/* Desktop type floor. Supporting text stays at 13px or more on wider
+   screens; small mono sizes are reserved for secondary metadata such as
+   swatch numbers, step numbers and diagram labels. Each selector repeats
+   the specificity of the rule it replaces and wins by coming last. */
+@media (min-width: 851px) {
+  .panel-intro > p,
+  .contrast-panel .contrast-heading p,
+  .palette-hint,
+  .source-actions > span,
+  .site-footer,
+  .step-list li,
+  .algorithm-stats span,
+  .contrast-legend,
+  .contrast-legend span,
+  .contrast-meta,
+  .contrast-meta code,
+  .contrast-meta span,
+  .contrast-sample > span:last-child,
+  .swatch-info > span,
+  .swatch-info button code,
+  .inspector > span,
+  .inspector button code,
+  .role-list > div,
+  .role-list code,
+  .sample-row > span,
+  .sample-row button span,
+  .export-select,
+  .text-button,
+  .panel-intro > .contrast-note,
+  .panel-intro > .button,
+  .button,
+  .value-switch button,
+  .colorspace-switch,
+  .colorspace-switch label,
+  .count-control,
+  .count-control output,
+  .sort-label,
+  .workbench-nav > button,
+  .header-right > a,
+  .local-badge,
+  .image-caption,
+  .image-caption > span,
+  .code-window pre,
+  select {
+    font-size: 13px;
+  }
+  .swatch-select,
+  .section-label h2 > span,
+  .section-label h2 b,
+  .tab-tag,
+  .step-list b,
+  .cube-topline,
+  .cube-bottomline,
+  .cube-legend span,
+  .code-heading,
+  .image-caption a {
+    font-size: 11px;
+  }
+  .lock-button {
+    width: 36px;
+    height: 36px;
+    top: 5px;
+    right: 5px;
+  }
+}
+/* rgb() and hsl() strings are too long for three swatches across at
+   narrow desktop widths; two across keeps every value whole. */
+@media (min-width: 851px) and (max-width: 1023px) {
+  .swatch-grid.format-rgb,
+  .swatch-grid.format-hsl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -253,3 +253,111 @@ test("no filler eyebrows or em dashes on any tab, and the export heading says wh
     "A LITTLE MORE CONTRAST",
   );
 });
+
+// Secondary metadata may use a smaller mono size; everything else is
+// supporting text. Illustrations draw their own type and are exempt.
+const METADATA =
+  ".swatch-select, .section-label h2 > span, .section-label h2 b, .tab-tag, .step-list b, .cube-topline, .cube-bottomline, .cube-legend, .code-heading, .image-caption a";
+const ILLUSTRATION = ".sr-only, .brand-preview, .low-contrast-art";
+
+for (const width of [1440, 1024, 900, 851]) {
+  test(`desktop text stays at 13px or more at ${width}px, values stay whole`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await ready(page);
+    await page.evaluate(() => document.fonts.ready);
+    const problems = new Set<string>();
+    for (const tab of TABS) {
+      await page.getByRole("tab", { name: tab }).click();
+      for (const format of ["HEX", "RGB", "HSL"]) {
+        await page.getByRole("button", { name: format, exact: true }).click();
+        const found = await page.evaluate(
+          ({ METADATA, ILLUSTRATION }) => {
+            const out: string[] = [];
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT,
+            );
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+              const text = n.textContent!.trim();
+              const el = n.parentElement!;
+              if (!text || el.closest(ILLUSTRATION)) continue;
+              const box = el.getBoundingClientRect();
+              if (!box.width || !box.height) continue;
+              const size = parseFloat(getComputedStyle(el).fontSize);
+              const min = el.closest(METADATA) ? 11 : 13;
+              if (size < min)
+                out.push(`${size}px "${text.slice(0, 24)}" (${el.className})`);
+            }
+            for (const select of document.querySelectorAll("select"))
+              if (
+                select.getBoundingClientRect().width &&
+                parseFloat(getComputedStyle(select).fontSize) < 13
+              )
+                out.push(`select ${select.getAttribute("aria-label")}`);
+            for (const button of document.querySelectorAll(
+              ".swatch-info button, .inspector button",
+            ))
+              if (button.scrollWidth > button.clientWidth + 0.5)
+                out.push(`clipped "${button.textContent!.trim()}"`);
+            if (document.documentElement.scrollWidth > innerWidth)
+              out.push("horizontal scroll");
+            return out;
+          },
+          { METADATA, ILLUSTRATION },
+        );
+        found.forEach((p) => problems.add(`${tab}/${format}: ${p}`));
+      }
+    }
+    expect([...problems]).toEqual([]);
+  });
+}
+
+test("desktop lock and copy controls are large and clearly visible", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  const lock = page.locator(".lock-button").first();
+  const box = (await lock.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(36);
+  expect(box.height).toBeGreaterThanOrEqual(36);
+  expect(
+    Number(await lock.evaluate((el) => getComputedStyle(el).opacity)),
+  ).toBeGreaterThanOrEqual(0.9);
+  const copy = (await page
+    .locator(".swatch-info button")
+    .first()
+    .boundingBox())!;
+  expect(copy.height).toBeGreaterThanOrEqual(32);
+});
+
+test.describe("on a touch phone", () => {
+  test.use({ viewport: { width: 390, height: 900 }, hasTouch: true });
+
+  test("the lock and copy controls are visible and easy to hit", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await ready(page);
+    const copy = (await page
+      .locator(".swatch-info button")
+      .first()
+      .boundingBox())!;
+    expect(copy.height).toBeGreaterThanOrEqual(32);
+    const lock = page.locator(".lock-button").first();
+    expect(
+      Number(await lock.evaluate((el) => getComputedStyle(el).opacity)),
+    ).toBeGreaterThanOrEqual(0.9);
+    const box = (await lock.boundingBox())!;
+    // 4px left of the visible circle, level with its center.
+    const hit = await page.evaluate(
+      ({ x, y }) => !!document.elementFromPoint(x, y)?.closest(".lock-button"),
+      { x: box.x - 4, y: box.y + box.height / 2 },
+    );
+    expect(hit).toBe(true);
+  });
+});
