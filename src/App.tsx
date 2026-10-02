@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import sunset from "./assets/sample.svg";
 import { Swatch, type ValueKind } from "./components/Swatch";
 import { ThemePreview } from "./components/ThemePreview";
@@ -18,6 +18,43 @@ import { useImageSource, type Source } from "./hooks/useImageSource";
 import { usePalette } from "./hooks/usePalette";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useSharedPalette } from "./hooks/useSharedPalette";
+import type { StageResult } from "./components/Stage";
+
+const loadStage = () => import("./components/Stage");
+const Stage = lazy(loadStage);
+
+// Resolves once the browser reports the photo as the page's largest paint, so
+// the stage download does not compete with it. Browsers that do not report
+// largest paints skip the wait. The photo may also never get an entry (another
+// element is larger, or early input stops the reporting), so a short timeout
+// bounds the wait.
+const afterLargestPaint = (image: HTMLImageElement) =>
+  new Promise<void>((resolve) => {
+    if (
+      typeof PerformanceObserver === "undefined" ||
+      !PerformanceObserver.supportedEntryTypes?.includes(
+        "largest-contentful-paint",
+      )
+    ) {
+      resolve();
+      return;
+    }
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries())
+        if ((entry as LargestContentfulPaint).element === image) finish();
+    });
+    const timer = setTimeout(() => finish(), 600);
+    function finish() {
+      observer.disconnect();
+      clearTimeout(timer);
+      resolve();
+    }
+    try {
+      observer.observe({ type: "largest-contentful-paint", buffered: true });
+    } catch {
+      finish();
+    }
+  });
 
 // "In context" is the default tab. The other tool panels stay off screen
 // until picked, so their code loads in separate chunks.
@@ -107,6 +144,57 @@ export default function App() {
     changedHexes,
   } = palette;
   const { copied, notice } = copyFeedback;
+  const hero = useRef<HTMLImageElement>(null);
+  const stageHost = useRef<HTMLDivElement>(null);
+  const [stageReady, setStageReady] = useState(false);
+  const heroSrc = (loaded ?? source)?.src;
+  useEffect(() => {
+    const image = hero.current;
+    if (!image || stageReady) return;
+    let cancelled = false;
+    let started = false;
+    const open = async () => {
+      if (started) return;
+      started = true;
+      try {
+        await image.decode();
+      } catch {
+        return;
+      }
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      await afterLargestPaint(image);
+      if (cancelled) return;
+      await loadStage();
+      await new Promise<void>((resolve) => {
+        if ("requestIdleCallback" in window)
+          window.requestIdleCallback(() => resolve(), { timeout: 300 });
+        else setTimeout(resolve, 50);
+      });
+      if (!cancelled) setStageReady(true);
+    };
+    if (image.complete) void open();
+    image.addEventListener("load", open);
+    return () => {
+      cancelled = true;
+      image.removeEventListener("load", open);
+    };
+  }, [heroSrc, stageReady]);
+  const stageResult = useMemo<StageResult | null>(
+    () =>
+      loaded && palette.detail.samples
+        ? {
+            image: loaded,
+            samples: palette.detail.samples,
+            steps: palette.detail.steps,
+            colorSpace: palette.detailColorSpace,
+            swatches: sorted.map((entry) => entry.color),
+            populations: sorted.map((entry) => entry.population),
+          }
+        : null,
+    [loaded, palette.detail, palette.detailColorSpace, sorted],
+  );
 
   // The inspector falls back to the first color; the swatches must agree.
   const selected = colors.find((c) => rgbToHex(c) === selectedHex) ?? colors[0];
@@ -218,9 +306,10 @@ export default function App() {
             <div className={`source-frame ${busy ? "is-processing" : ""}`}>
               {loaded || source ? (
                 <img
+                  ref={hero}
                   src={(loaded ?? source)!.src}
                   alt={(loaded ?? source)!.name}
-                  fetchPriority="high"
+                  {...{ fetchpriority: "high" }}
                   decoding="async"
                   crossOrigin={
                     /^https?:/i.test((loaded ?? source)!.src)
@@ -245,6 +334,21 @@ export default function App() {
                   </button>
                 </div>
               )}
+              <div
+                ref={stageHost}
+                className="stage-host"
+                data-stage-mode={!source && !stageResult ? "none" : "pending"}
+                data-stage-phase="waiting"
+                data-stage-loop="idle"
+                data-stage-points="0"
+                data-stage-frames="0"
+              >
+                {stageReady && stageResult && (
+                  <Suspense fallback={null}>
+                    <Stage result={stageResult} host={stageHost} hero={hero} />
+                  </Suspense>
+                )}
+              </div>
               {busy && (
                 <span className="processing-badge">
                   <i /> Finding your colors…

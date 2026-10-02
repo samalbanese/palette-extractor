@@ -60,7 +60,16 @@ function fileOfReference(ref) {
   return url.pathname.replace(/^\//, "");
 }
 
-export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
+/**
+ * `requireStage` (on by default) makes a missing or eagerly bundled Stage a
+ * failure, so a rename or an accidental static import cannot slip past the
+ * renderer budget.
+ */
+export function checkBundle(
+  distDir,
+  budgets = DEFAULT_BUDGETS,
+  { requireStage = true } = {},
+) {
   const problems = [];
   const rows = [];
   const htmlPath = join(distDir, "index.html");
@@ -78,14 +87,21 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
       key,
     ]),
   );
-  const closure = (keys) => {
+  // `stopAt` names files already counted elsewhere: the walk neither counts
+  // them nor follows their imports, so a lazy chunk that imports the entry
+  // does not pull in the entry's other lazy chunks.
+  const closure = (keys, { lazy = false, stopAt = new Set() } = {}) => {
     const files = new Set();
     const seen = new Set();
     const walk = (key) => {
       if (seen.has(key) || !manifest[key]) return;
       seen.add(key);
+      if (!keys.includes(key) && stopAt.has(canonical(manifest[key].file)))
+        return;
       files.add(canonical(manifest[key].file));
       for (const next of manifest[key].imports ?? []) walk(next);
+      if (lazy)
+        for (const next of manifest[key].dynamicImports ?? []) walk(next);
     };
     keys.forEach(walk);
     return files;
@@ -171,11 +187,22 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     (key) => key === STAGE_SOURCE || manifest[key].src === STAGE_SOURCE,
   );
   if (stageKey) {
-    const stageFiles = [...closure([stageKey])].filter(
-      (file) => !firstLoad.has(file),
-    );
+    if (
+      firstLoad.has(canonical(manifest[stageKey].file)) ||
+      !manifest[stageKey].isDynamicEntry
+    )
+      problems.push(
+        "the Stage chunk is part of first-load JS; it must stay lazily loaded",
+      );
+    const stageFiles = [
+      ...closure([stageKey], { lazy: true, stopAt: firstLoad }),
+    ].filter((file) => !firstLoad.has(file));
     budgetRow("Stage chunk", stageFiles, budgets.stage);
   } else {
+    if (requireStage)
+      problems.push(
+        `no lazily loaded Stage chunk (${STAGE_SOURCE}) in the manifest`,
+      );
     rows.push({
       name: "Stage chunk",
       files: [],

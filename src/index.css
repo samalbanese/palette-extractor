@@ -532,6 +532,74 @@ code {
   display: block;
   animation: image-reveal 0.7s ease-out;
 }
+/* Source stage: all layers stay inside the existing frame. */
+.stage-host,
+.stage-surface,
+.stage-points,
+.stage-wire {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.stage-surface {
+  background: #1b1e20;
+}
+/* Until the stage has drawn a frame (no step yet), or if it never starts,
+   the photo underneath stays in view. */
+.stage-host:not([data-stage-step]) .stage-surface,
+.stage-host[data-stage-step="lift"] .stage-surface {
+  background: transparent;
+}
+.stage-inset {
+  position: absolute;
+  left: 14px;
+  bottom: 48px;
+  width: 25%;
+  height: 24%;
+  object-fit: cover;
+  border: 1px solid #ffffff40;
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+}
+.stage-switch {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: 1px solid #ffffff1a;
+  box-shadow: 0 2px 12px #0003;
+  pointer-events: auto;
+}
+.stage-switch button {
+  padding: 0 10px;
+  min-height: 32px;
+}
+.stage-flyers {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+.stage-flyer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-shadow:
+    0 0 12px #ffffff12,
+    0 6px 20px #0003;
+  will-change: transform;
+}
+.swatch-color::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--swatch);
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+}
 .image-caption {
   position: absolute;
   bottom: 0;
@@ -652,10 +720,12 @@ code {
   margin: 0;
   padding: 0;
   border: 0;
-  transition: opacity 0.2s;
 }
+/* Dims gently while new colors are found; the result snaps back to full
+   strength so fresh swatches never sit behind a fading layer. */
 .palette-fieldset.is-busy {
   opacity: 0.5;
+  transition: opacity 0.2s;
 }
 .swatch-grid {
   display: grid;
@@ -1509,11 +1579,9 @@ select {
 }
 @keyframes swatch-enter {
   from {
-    opacity: 0;
     transform: translateY(9px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
