@@ -264,17 +264,30 @@ describe("checkBundle", () => {
     }
   });
 
-  it("fails when two different addresses load the same file", () => {
-    const dir = makeDist({
-      html: entryHtml(
-        `<script type="module" src="/assets/%69ndex-a.js"></script>`,
-      ),
-      manifest: entryManifest(),
-      files: { "assets/index-a.js": 1 * KB },
+  it("fails on an encoded spelling, which downloads a counted file again", () => {
+    const vendor = entryManifest({
+      "src/vendor.ts": { file: "assets/vendor-b.js", imports: [] },
+      "index.html": {
+        file: "assets/index-a.js",
+        src: "index.html",
+        isEntry: true,
+        imports: ["src/vendor.ts"],
+        dynamicImports: [],
+      },
     });
-    const result = checkBundle(dir, budgets);
-    expect(result.ok).toBe(false);
-    expect(result.problems.join("\n")).toMatch(/under more than one address/);
+    for (const extra of [
+      `<script type="module" src="/assets/%69ndex-a.js"></script>`,
+      `<link rel="modulepreload" href="/assets/%76endor-b.js">`,
+    ]) {
+      const dir = makeDist({
+        html: entryHtml(extra),
+        manifest: vendor,
+        files: { "assets/index-a.js": 1 * KB, "assets/vendor-b.js": 1 * KB },
+      });
+      const result = checkBundle(dir, budgets);
+      expect(result.ok, extra).toBe(false);
+      expect(result.problems.join("\n"), extra).toMatch(/cannot be mapped/);
+    }
   });
 
   it("counts a file loaded twice from the same address once", () => {

@@ -40,21 +40,24 @@ const canonical = (path) =>
 // same-origin path, such as another origin, a query or a fragment, cannot be
 // tied to a file in this build. An empty "?" or "#" still counts: `search`
 // and `hash` read as "" for those, so the serialized URL is checked instead.
+// Built file names never need percent-encoding, and browsers fetch a module
+// once per address, so an encoded spelling would be a second download of a
+// file the totals count once; only the plain spelling is accepted.
 const SITE = "https://build.invalid/";
-function resolveReference(ref) {
+function fileOfReference(ref) {
   let url;
   try {
     url = new URL(ref, SITE);
   } catch {
     return null;
   }
-  if (url.origin !== new URL(SITE).origin || /[?#]/.test(url.href)) return null;
-  try {
-    const file = decodeURIComponent(url.pathname).replace(/^\//, "");
-    return { file, address: url.href };
-  } catch {
+  if (
+    url.origin !== new URL(SITE).origin ||
+    /[?#]/.test(url.href) ||
+    url.pathname.includes("%")
+  )
     return null;
-  }
+  return url.pathname.replace(/^\//, "");
 }
 
 export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
@@ -107,26 +110,14 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     )
     .map((tag) => attr(tag, "href"))
     .filter(Boolean);
-  // Browsers fetch a module once per address, so one file under two
-  // addresses is two downloads that a per-file total would count once.
   const htmlFiles = [];
-  const addressOfFile = new Map();
   for (const ref of [...scripts, ...preloads]) {
-    const resolved = resolveReference(ref);
-    if (resolved === null) {
+    const file = fileOfReference(ref);
+    if (file === null)
       problems.push(
         `${ref} is loaded by index.html but cannot be mapped to a file in this build`,
       );
-      continue;
-    }
-    const { file, address } = resolved;
-    const seen = addressOfFile.get(file);
-    if (seen === undefined) addressOfFile.set(file, address);
-    else if (seen !== address)
-      problems.push(
-        `${file} is loaded by index.html under more than one address, so it downloads more than once`,
-      );
-    htmlFiles.push(file);
+    else htmlFiles.push(file);
   }
 
   // A module the manifest does not list could import anything unmeasured.
