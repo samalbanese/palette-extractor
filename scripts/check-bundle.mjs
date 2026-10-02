@@ -38,19 +38,20 @@ const canonical = (path) =>
 // index.html is served from the site root. A reference is resolved with URL
 // rules (dot segments stop at the root), and anything that is not a plain
 // same-origin path, such as another origin, a query or a fragment, cannot be
-// tied to a file in this build.
+// tied to a file in this build. An empty "?" or "#" still counts: `search`
+// and `hash` read as "" for those, so the serialized URL is checked instead.
 const SITE = "https://build.invalid/";
-function fileOfReference(ref) {
+function resolveReference(ref) {
   let url;
   try {
     url = new URL(ref, SITE);
   } catch {
     return null;
   }
-  if (url.origin !== new URL(SITE).origin || url.search || url.hash)
-    return null;
+  if (url.origin !== new URL(SITE).origin || /[?#]/.test(url.href)) return null;
   try {
-    return decodeURIComponent(url.pathname).replace(/^\//, "");
+    const file = decodeURIComponent(url.pathname).replace(/^\//, "");
+    return { file, address: url.href };
   } catch {
     return null;
   }
@@ -106,14 +107,26 @@ export function checkBundle(distDir, budgets = DEFAULT_BUDGETS) {
     )
     .map((tag) => attr(tag, "href"))
     .filter(Boolean);
+  // Browsers fetch a module once per address, so one file under two
+  // addresses is two downloads that a per-file total would count once.
   const htmlFiles = [];
+  const addressOfFile = new Map();
   for (const ref of [...scripts, ...preloads]) {
-    const file = fileOfReference(ref);
-    if (file === null)
+    const resolved = resolveReference(ref);
+    if (resolved === null) {
       problems.push(
         `${ref} is loaded by index.html but cannot be mapped to a file in this build`,
       );
-    else htmlFiles.push(file);
+      continue;
+    }
+    const { file, address } = resolved;
+    const seen = addressOfFile.get(file);
+    if (seen === undefined) addressOfFile.set(file, address);
+    else if (seen !== address)
+      problems.push(
+        `${file} is loaded by index.html under more than one address, so it downloads more than once`,
+      );
+    htmlFiles.push(file);
   }
 
   // A module the manifest does not list could import anything unmeasured.

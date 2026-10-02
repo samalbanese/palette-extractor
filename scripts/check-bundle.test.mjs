@@ -248,6 +248,8 @@ describe("checkBundle", () => {
     for (const src of [
       "/bootstrap.js?/../assets/index-a.js",
       "/assets/index-a.js#x",
+      "/assets/index-a.js?",
+      "/assets/index-a.js#",
       "https://other.example/../../assets/index-a.js",
       "//other.example/assets/index-a.js",
     ]) {
@@ -260,6 +262,28 @@ describe("checkBundle", () => {
       expect(result.ok, src).toBe(false);
       expect(result.problems.join("\n"), src).toMatch(/cannot be mapped/);
     }
+  });
+
+  it("fails when two different addresses load the same file", () => {
+    const dir = makeDist({
+      html: entryHtml(
+        `<script type="module" src="/assets/%69ndex-a.js"></script>`,
+      ),
+      manifest: entryManifest(),
+      files: { "assets/index-a.js": 1 * KB },
+    });
+    const result = checkBundle(dir, budgets);
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toMatch(/under more than one address/);
+  });
+
+  it("counts a file loaded twice from the same address once", () => {
+    const dir = makeDist({
+      html: entryHtml(`<link rel="modulepreload" href="/assets/index-a.js">`),
+      manifest: entryManifest(),
+      files: { "assets/index-a.js": 1 * KB },
+    });
+    expect(checkBundle(dir, budgets).problems).toEqual([]);
   });
 
   it("follows the imports of an entry referenced by a relative path", () => {
