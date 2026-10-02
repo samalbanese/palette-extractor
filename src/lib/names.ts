@@ -166,6 +166,43 @@ export function nearestColorName(rgb: RGB): string {
   return nearest.name;
 }
 
+/**
+ * Names a whole palette with no name used twice. When two colors share a
+ * nearest name, the closer one keeps it and the other takes its next nearest
+ * unused name. Matching closest pairs first means a color's name depends on
+ * the palette, not on the order it is sorted in, so every view of the same
+ * palette agrees.
+ */
+export function paletteColorNames(palette: RGB[]): string[] {
+  const ranked = palette.map((rgb) =>
+    resolved
+      .map((entry) => ({
+        name: entry.name,
+        distance: colorDistanceSq(rgb, entry.color),
+      }))
+      .sort((a, b) => a.distance - b.distance),
+  );
+  const names: string[] = new Array(palette.length);
+  const used = new Set<string>();
+  for (let round = 0; round < palette.length; round++) {
+    let pick = -1;
+    let pickName = "";
+    let pickDistance = Infinity;
+    ranked.forEach((candidates, index) => {
+      if (names[index] !== undefined) return;
+      const best = candidates.find((candidate) => !used.has(candidate.name))!;
+      if (best.distance < pickDistance) {
+        pick = index;
+        pickName = best.name;
+        pickDistance = best.distance;
+      }
+    });
+    names[pick] = pickName;
+    used.add(pickName);
+  }
+  return names;
+}
+
 function hexToRgb(hex: string): RGB {
   return {
     r: Number.parseInt(hex.slice(1, 3), 16),

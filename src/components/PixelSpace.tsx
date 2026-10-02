@@ -77,6 +77,7 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
   const available = filtered?.groups.length ?? 0;
   const empty = steps.length === 0 || available === 0;
   const drawn = empty ? 0 : Math.min(available, budget);
+  const groups = steps[step]?.length ?? 0;
   const animate = !reducedMotion && !paused;
 
   // What the drawing code reads, as of the last commit. A render that has
@@ -315,8 +316,8 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
             <span>pixels visualized</span>
           </div>
           <div>
-            <strong>{steps[step]?.length ?? 0}</strong>
-            <span>color groups</span>
+            <strong>{groups}</strong>
+            <span>{groups === 1 ? "color group" : "color groups"}</span>
           </div>
           <div>
             <strong>100%</strong>
