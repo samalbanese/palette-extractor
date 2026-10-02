@@ -32,7 +32,9 @@ export function createQualityMonitor(): QualityMonitor {
       }
       window.push(frameMs);
       if (window.length === WINDOW_FRAMES) {
-        const median = [...window].sort((a, b) => a - b)[WINDOW_FRAMES / 2];
+        const sorted = [...window].sort((a, b) => a - b);
+        const middle = WINDOW_FRAMES / 2;
+        const median = (sorted[middle - 1] + sorted[middle]) / 2;
         window = [];
         if (median > FRAME_BUDGET_MS && level < LEVELS.length - 1) level++;
         else measuring = false;

@@ -62,6 +62,24 @@ describe("introState", () => {
     expect(introState(2700, 3000).flight).toBe(1);
   });
 
+  // easeInOutCubic is 0.0625 a quarter of the way through and 0.9375 at three
+  // quarters; split and flight are linear.
+  it.each([3000, 1200])("eases each phase as specified at %i ms", (length) => {
+    const at = (ms: number) => introState((ms * length) / 3000, length);
+    expect(at(200).toCloud).toBeCloseTo(0.6 * 0.0625, 6);
+    expect(at(600).toCloud).toBeCloseTo(0.6 * 0.9375, 6);
+    expect(at(950).toCloud).toBeCloseTo(0.6 + 0.4 * 0.0625, 6);
+    expect(at(1250).toCloud).toBeCloseTo(0.6 + 0.4 * 0.9375, 6);
+    expect(at(1550).split).toBeCloseTo(0.25, 6);
+    expect(at(1850).split).toBeCloseTo(0.75, 6);
+    expect(at(2075).converge).toBeCloseTo(0.0625, 6);
+    expect(at(2225).converge).toBeCloseTo(0.9375, 6);
+    expect(at(2400).flight).toBeCloseTo(0.25, 6);
+    expect(at(2600).flight).toBeCloseTo(0.75, 6);
+    expect(at(2775).release).toBeCloseTo(0.0625, 6);
+    expect(at(2925).release).toBeCloseTo(0.9375, 6);
+  });
+
   it("only moves each value forward", () => {
     const keys = ["toCloud", "split", "converge", "flight", "release"] as const;
     for (const length of [3000, 1200, 2345]) {

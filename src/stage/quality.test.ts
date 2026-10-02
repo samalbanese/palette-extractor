@@ -44,6 +44,22 @@ describe("createQualityMonitor", () => {
     expect(feed(monitor, 16, 16)).toBe(20000);
   });
 
+  it("averages the two middle frames of an even window", () => {
+    const monitor = createQualityMonitor();
+    feed(monitor, 5, 5);
+    feed(monitor, 19, 15);
+    // Median (19 + 21) / 2 = 20 ms is within budget.
+    expect(feed(monitor, 21, 15)).toBe(20000);
+    expect(feed(monitor, 90, 60)).toBe(20000);
+  });
+
+  it("keeps quality at exactly the 20 ms budget", () => {
+    const monitor = createQualityMonitor();
+    feed(monitor, 5, 5);
+    expect(feed(monitor, 20, 30)).toBe(20000);
+    expect(feed(monitor, 90, 60)).toBe(20000);
+  });
+
   it("stops after the first fast window even if later frames are slow", () => {
     const monitor = createQualityMonitor();
     feed(monitor, 5, 5);
