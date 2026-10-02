@@ -16,6 +16,18 @@ for (let run = 1; run <= 3; run++)
       downloadThroughput: (10 * 1000 * 1000) / 8,
       uploadThroughput: (10 * 1000 * 1000) / 8,
     });
+    // Counts chips as they enter the page, so an intro that jumps straight
+    // to its end cannot pass on timing alone.
+    await page.addInitScript(() => {
+      const win = window as unknown as { __flyers: number };
+      win.__flyers = 0;
+      new MutationObserver((records) => {
+        for (const record of records)
+          for (const node of record.addedNodes)
+            if (node instanceof HTMLElement && node.matches(".stage-flyer"))
+              win.__flyers++;
+      }).observe(document, { childList: true, subtree: true });
+    });
     await page.goto("/");
     await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
     const startedAt = Number(
@@ -29,6 +41,14 @@ for (let run = 1; run <= 3; run++)
       contentType: "text/plain",
     });
     expect(doneAt).toBeLessThanOrEqual(3500);
+    // The shortest intro is 1,200 ms; one frame of slack.
+    expect(startedAt).toBeGreaterThan(0);
+    expect(doneAt - startedAt).toBeGreaterThanOrEqual(1150);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __flyers: number }).__flyers,
+      ),
+    ).toBeGreaterThan(0);
     const result = await page.locator(".swatch").evaluateAll((elements) =>
       elements.map((el) => {
         const color = el.querySelector<HTMLElement>(".swatch-color")!;
