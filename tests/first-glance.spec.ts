@@ -433,6 +433,43 @@ test("the desktop text floor holds with motion on, after an upload, in the URL f
   expect([...problems]).toEqual([]);
 });
 
+// hsl(240, 100%, 100%) (#fefeff, whose lightness rounds up to 100) and
+// rgb(100, 100, 100) are the longest values a real color produces. Text
+// rendering differs by a few pixels between platforms, so a value that fits
+// by 2px on one machine can clip on another.
+test("the longest rgb() and hsl() values keep room to spare at every desktop width", async ({
+  page,
+}) => {
+  await page.goto("/#p=fefeff.ff0004.646464.84afbd.0a0a0a.d27108");
+  await page.reload();
+  await ready(page);
+  await page.evaluate(() => document.fonts.ready);
+  const tight: string[] = [];
+  for (const width of [1024, 1060, 1152, 1200, 1279, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const format of ["RGB", "HSL"]) {
+      await page.getByRole("button", { name: format, exact: true }).click();
+      const spare = await page.evaluate(() =>
+        [...document.querySelectorAll(".swatch-info button")].map((b) => {
+          const style = getComputedStyle(b);
+          const room =
+            b.clientWidth -
+            parseFloat(style.paddingLeft) -
+            parseFloat(style.paddingRight);
+          const parts = [...b.children];
+          const used =
+            parts.reduce((sum, c) => sum + c.getBoundingClientRect().width, 0) +
+            (parts.length - 1) * parseFloat(style.columnGap || "0");
+          return [b.textContent!.trim(), room - used] as const;
+        }),
+      );
+      for (const [value, room] of spare)
+        if (room < 10) tight.push(`${width}px ${value}: ${room.toFixed(1)}px`);
+    }
+  }
+  expect(tight).toEqual([]);
+});
+
 test("desktop lock and copy controls are large and clearly visible", async ({
   page,
 }) => {

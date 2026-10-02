@@ -2426,9 +2426,10 @@ select {
     right: 5px;
   }
 }
-/* rgb() and hsl() strings are too long for three swatches across at
-   narrow desktop widths; two across keeps every value whole. */
-@media (min-width: 851px) and (max-width: 1023px) {
+/* rgb() and hsl() strings are too long for three swatches across below
+   1280px (the wider page margin above 1150px narrows the columns again);
+   two across keeps every value whole with room for font rendering to vary. */
+@media (min-width: 851px) and (max-width: 1279px) {
   .swatch-grid.format-rgb,
   .swatch-grid.format-hsl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
