@@ -176,6 +176,39 @@ for (const space of ["RGB", "Perceptual"]) {
   });
 }
 
+test.describe("on a touch screen", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  test("tapping a sample leaves no tooltip over the controls", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await ready(page);
+    const sample = page.getByRole("button", { name: "Try Forest floor" });
+    await sample.scrollIntoViewIfNeeded();
+    await sample.tap();
+    await ready(page);
+    await expect(sample).toHaveAttribute("aria-pressed", "true");
+    for (const tip of await page.locator(".sample-row button span").all())
+      await expect(tip).toHaveCSS("opacity", "0");
+  });
+});
+
+test("keyboard focus still shows a sample's name", async ({ page }) => {
+  await page.goto("/");
+  await ready(page);
+  const sample = page.getByRole("button", { name: "Try Forest floor" });
+  await sample.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(sample).toBeFocused();
+  await expect(sample.locator("span")).toHaveCSS("opacity", "1");
+});
+
 test("no color name repeats, and the swatches, inspector and JSON export agree", async ({
   page,
 }) => {

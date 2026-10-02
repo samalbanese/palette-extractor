@@ -706,9 +706,6 @@ code {
 .sample-row button.active {
   border-color: #c5b7a5;
 }
-.sample-row button:hover {
-  border-color: #818587;
-}
 .sample-row img {
   width: 59px;
   height: 38px;
@@ -730,7 +727,17 @@ code {
   border-radius: 3px;
   z-index: 2;
 }
-.sample-row button:hover span,
+/* A tap counts as hover on many touch screens and the state sticks after
+   it, so the name tip shows on hover only where a pointer can hover, and on
+   keyboard focus. */
+@media (hover: hover) {
+  .sample-row button:hover {
+    border-color: #818587;
+  }
+  .sample-row button:hover span {
+    opacity: 1;
+  }
+}
 .sample-row button:focus-visible span {
   opacity: 1;
 }
