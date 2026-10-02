@@ -11,6 +11,7 @@ export async function ready(page: Page) {
 // Contrast is only meaningful once entrance animations finish; mid-fade
 // swatches blend with the page and read darker than they render at rest.
 export async function settled(page: Page) {
+  await stageDone(page);
   await page.waitForFunction(() =>
     document
       .getAnimations()
@@ -20,6 +21,25 @@ export async function settled(page: Page) {
           a.effect?.getTiming().iterations === Infinity,
       ),
   );
+}
+
+export async function stageDone(page: Page) {
+  const host = page.locator(".stage-host");
+  await expect
+    .poll(
+      async () => {
+        const mode = await host.getAttribute("data-stage-mode");
+        const phase = await host.getAttribute("data-stage-phase");
+        return mode === "none" || phase === "intro" || phase === "done";
+      },
+      { timeout: 15000 },
+    )
+    .toBe(true);
+  if ((await host.getAttribute("data-stage-mode")) === "none") return;
+  if ((await host.getAttribute("data-stage-phase")) === "intro")
+    await page.keyboard.press("Escape");
+  await expect(host).toHaveAttribute("data-stage-phase", "done");
+  await expect(host).toHaveAttribute("data-stage-done-at", /\d/);
 }
 
 export const svg = (color: string) =>

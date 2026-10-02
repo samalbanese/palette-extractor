@@ -1,0 +1,269 @@
+import { test, expect, type Page } from "@playwright/test";
+import { ready, stageDone, settled } from "./helpers";
+import { accessible, countFrames, host, pointsCanvas } from "./stage-checks";
+
+test("pointer skip is immediate and a copy click retains its action", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  const elapsed = await page.locator(".source-frame").evaluate((el) => {
+    const start = performance.now();
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    return {
+      elapsed: performance.now() - start,
+      phase: el.querySelector<HTMLElement>(".stage-host")!.dataset.stagePhase,
+    };
+  });
+  expect(elapsed.phase).toBe("done");
+  expect(elapsed.elapsed).toBeLessThan(100);
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  const button = page.locator(".swatch-info button").first();
+  const color = await button.innerText();
+  await button.click();
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "done");
+  await expect(button).toContainText("Copied!");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    color.trim(),
+  );
+});
+
+test("touch skips within 100ms and selects both source views", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    hasTouch: true,
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  await page.goto("http://127.0.0.1:5173/");
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  await page.evaluate(() => {
+    window.addEventListener(
+      "pointerdown",
+      () => {
+        const start = performance.now();
+        queueMicrotask(
+          () =>
+            (document.body.dataset.skipTime = String(
+              performance.now() - start,
+            )),
+        );
+      },
+      { once: true, capture: true },
+    );
+  });
+  const box = await page.locator(".source-frame").boundingBox();
+  await page.touchscreen.tap(box!.x + 30, box!.y + 30);
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "done");
+  expect(
+    Number(await page.locator("body").getAttribute("data-skip-time")),
+  ).toBeLessThan(100);
+  const group = page.getByRole("group", { name: "Source view" });
+  await group.getByRole("button", { name: "Photo", exact: true }).tap();
+  await expect(
+    group.getByRole("button", { name: "Photo", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(host(page)).toHaveAttribute("data-stage-loop", "idle");
+  await group.getByRole("button", { name: "Color space", exact: true }).tap();
+  await expect(
+    group.getByRole("button", { name: "Color space", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await context.close();
+});
+
+test("reduced motion draws once with stable pixels and no stage animations", async ({
+  page,
+}) => {
+  const frames = await countFrames(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/);
+  await expect(host(page)).toHaveAttribute("data-stage-loop", "idle");
+  const first = await pointsCanvas(page);
+  expect(first.drawn).toBeGreaterThanOrEqual(500);
+  const counted = await frames();
+  const requested = await host(page).getAttribute("data-stage-raf");
+  await page.waitForTimeout(1000);
+  expect((await pointsCanvas(page)).image).toBe(first.image);
+  expect(await frames()).toBe(counted);
+  expect(await host(page).getAttribute("data-stage-raf")).toBe(requested);
+  expect(
+    await page.evaluate(
+      () =>
+        document.getAnimations().filter((a) => {
+          const target = (a.effect as KeyframeEffect)?.target;
+          return (
+            target instanceof Element &&
+            (!!target.closest(".stage-host,.stage-flyers") ||
+              (a.effect as KeyframeEffect).pseudoElement === "::after")
+          );
+        }).length,
+    ),
+  ).toBe(0);
+});
+
+test("changing motion preference during the intro finishes it", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "done");
+  await expect(host(page)).toHaveAttribute("data-stage-loop", "idle");
+});
+
+test("a new sample uses the short intro and preserves its palette", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await stageDone(page);
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+  const start = await page.evaluate(() => performance.now());
+  await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/, {
+    timeout: 2500,
+  });
+  const duration =
+    Number(await host(page).getAttribute("data-stage-done-at")) - start;
+  expect(duration).toBeLessThan(2000);
+  expect(duration).toBeGreaterThan(900);
+  expect(
+    await page
+      .locator(".swatch-select")
+      .evaluateAll((els) =>
+        els.map(
+          (el) => el.getAttribute("aria-label")!.match(/#[0-9a-f]{6}/i)![0],
+        ),
+      ),
+  ).toEqual(["#17251e", "#233531", "#29403a", "#30514a", "#337265", "#2c3731"]);
+  await page.getByRole("radio", { name: "Perceptual", exact: true }).check();
+  await ready(page);
+  await expect(page.locator(".stage-points")).toHaveAttribute(
+    "aria-label",
+    /Forest floor.*Perceptual space/,
+  );
+  await expect(host(page)).toHaveAttribute("data-stage-phase", "done");
+});
+
+test("a delayed sample cannot replace the last committed stage", async ({
+  page,
+}) => {
+  let held = 0;
+  await page.route("**/samples/fern.webp", async (route) => {
+    held++;
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.continue();
+  });
+  await page.goto("/");
+  await stageDone(page);
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  await page.getByRole("button", { name: "Try Coastal color" }).click();
+  await expect(page.locator(".stage-points")).toHaveAttribute(
+    "aria-label",
+    /Coastal color/,
+  );
+  await page.waitForTimeout(3500);
+  expect(held).toBeGreaterThan(0);
+  await expect(page.locator(".stage-points")).toHaveAttribute(
+    "aria-label",
+    /Coastal color/,
+  );
+});
+
+test("source switch supports mouse, Tab, Enter and Space with visible focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await stageDone(page);
+  const photo = page.getByRole("button", { name: "Photo", exact: true }),
+    cloud = page.getByRole("button", { name: "Color space", exact: true });
+  await photo.click();
+  await expect(photo).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Tab");
+  await expect(cloud).toBeFocused();
+  expect(
+    await cloud.evaluate(
+      (el) =>
+        getComputedStyle(el).outlineStyle !== "none" ||
+        getComputedStyle(el).boxShadow !== "none",
+    ),
+  ).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(cloud).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Shift+Tab");
+  await expect(photo).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(photo).toHaveAttribute("aria-pressed", "true");
+});
+
+// Intro checkpoints: the page clock steps the stage to a known phase, then
+// the frame loop is starved and every CSS and WAAPI animation paused, so axe
+// (which needs running timers) scans one still frame.
+async function freezeAt(page: Page, phase: string) {
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1000);
+  await page.goto("/");
+  await expect
+    .poll(
+      async () => {
+        await page.clock.runFor(16);
+        return host(page).getAttribute("data-stage-step");
+      },
+      { timeout: 20000, intervals: [0] },
+    )
+    .toBe(phase);
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+  });
+  // The frame already queued draws once more, then the loop ends.
+  await page.clock.runFor(16);
+  await page.clock.resume();
+  await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()));
+  await expect(host(page)).toHaveAttribute("data-stage-step", phase);
+}
+const still = (page: Page) =>
+  page.evaluate(() => ({
+    points: document
+      .querySelector<HTMLCanvasElement>(".stage-points")!
+      .toDataURL(),
+    times: document
+      .getAnimations()
+      .map((a) => String(a.currentTime))
+      .join(),
+    wire: document.querySelector<HTMLCanvasElement>(".stage-wire")!.toDataURL(),
+    // Each swatch's effective opacity, including every ancestor's.
+    opacities: [...document.querySelectorAll(".swatch-color")].map((el) => {
+      let opacity = 1;
+      for (let node: Element | null = el; node; node = node.parentElement)
+        opacity *= Number(getComputedStyle(node).opacity);
+      return String(opacity);
+    }),
+  }));
+
+for (const width of [390, 768, 1440]) {
+  for (const phase of ["lift", "split", "flight"] as const)
+    test(`intro at ${phase} is accessible at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await freezeAt(page, phase);
+      const before = await still(page);
+      expect(new Set(before.opacities)).toEqual(new Set(["1"]));
+      await accessible(page);
+      expect(await still(page)).toEqual(before);
+      await expect(host(page)).toHaveAttribute("data-stage-phase", "intro");
+    });
+  for (const state of ["cloud", "photo", "reduced"] as const)
+    test(`${state} is accessible at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      if (state === "reduced")
+        await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/");
+      await settled(page);
+      if (state === "photo")
+        await page.getByRole("button", { name: "Photo", exact: true }).click();
+      await accessible(page);
+    });
+}
