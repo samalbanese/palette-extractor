@@ -173,3 +173,43 @@ test("the export header fits a narrow phone even at ten colors", async ({
     expect(overflow, format).toBeLessThanOrEqual(0);
   }
 });
+
+for (const width of [390, 360, 320]) {
+  test(`the identity footer sits on two clean rows at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await ready(page);
+    const layout = await page.locator(".brand-bottom").evaluate((footer) => {
+      const [tagline, dots, study] = Array.from(footer.children);
+      const lineCount = (el: Element) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return new Set(
+          Array.from(range.getClientRects(), (r) => Math.round(r.top)),
+        ).size;
+      };
+      const box = (el: Element) => el.getBoundingClientRect();
+      const middle = (el: Element) => box(el).top + box(el).height / 2;
+      return {
+        taglineLines: lineCount(tagline),
+        studyLines: lineCount(study),
+        dotsBelowTagline: box(dots).top >= box(tagline).bottom - 1,
+        studyBesideDots: Math.abs(middle(study) - middle(dots)) < 4,
+      };
+    });
+    expect(layout).toEqual({
+      taglineLines: 1,
+      studyLines: 1,
+      dotsBelowTagline: true,
+      studyBesideDots: true,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+}

@@ -2088,9 +2088,24 @@ select {
     left: -11px;
   }
   .brand-bottom {
-    font-size: 5px;
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas:
+      "tagline tagline"
+      "dots study";
+    justify-content: space-between;
+    align-items: center;
+    row-gap: 8px;
     letter-spacing: 0;
-    gap: 3px;
+  }
+  .brand-bottom > span:first-child {
+    grid-area: tagline;
+  }
+  .brand-bottom > div {
+    grid-area: dots;
+  }
+  .brand-bottom > span:last-child {
+    grid-area: study;
   }
   .brand-bottom i {
     width: 11px;
