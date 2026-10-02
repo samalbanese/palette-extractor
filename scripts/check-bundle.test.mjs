@@ -7,6 +7,8 @@ import { checkBundle } from "./check-bundle.mjs";
 
 const KB = 1024;
 const budgets = { firstLoad: 20 * KB, stage: 5 * KB };
+// For checks unrelated to the Stage chunk, whose fixtures have none.
+const loose = { requireStage: false };
 
 /** Random bytes barely compress, so gzip size tracks the requested size. */
 function makeDist({
@@ -52,13 +54,13 @@ describe("checkBundle", () => {
       manifest: entryManifest(),
       files: { "assets/index-a.js": 10 * KB },
     });
-    expect(checkBundle(small, budgets).ok).toBe(true);
+    expect(checkBundle(small, budgets, loose).ok).toBe(true);
     const big = makeDist({
       html: entryHtml(),
       manifest: entryManifest(),
       files: { "assets/index-a.js": 25 * KB },
     });
-    const result = checkBundle(big, budgets);
+    const result = checkBundle(big, budgets, loose);
     expect(result.ok).toBe(false);
     expect(row(result, "first-load JS").status).toBe("fail");
     expect(row(result, "first-load JS").bytesGzip).toBeGreaterThan(25 * KB);
@@ -79,7 +81,7 @@ describe("checkBundle", () => {
       }),
       files: { "assets/index-a.js": 8 * KB, "assets/vendor-b.js": 8 * KB },
     });
-    const result = checkBundle(dir, budgets);
+    const result = checkBundle(dir, budgets, loose);
     expect(row(result, "first-load JS").files.sort()).toEqual([
       "assets/index-a.js",
       "assets/quantize.worker-abc.js",
@@ -106,7 +108,7 @@ describe("checkBundle", () => {
         "assets/deeper-d.js": 20 * KB,
       },
     });
-    expect(checkBundle(dir, budgets).ok).toBe(false);
+    expect(checkBundle(dir, budgets, loose).ok).toBe(false);
   });
 
   it("finds module scripts and preloads whatever quoting their tags use", () => {
@@ -330,11 +332,11 @@ describe("checkBundle", () => {
       files: { "assets/index-a.js": 2 * KB },
     };
     expect(
-      row(checkBundle(makeDist(base), budgets), "first-load JS").files,
+      row(checkBundle(makeDist(base), budgets, loose), "first-load JS").files,
     ).toContain("assets/quantize.worker-abc.js");
-    expect(checkBundle(makeDist({ ...base, worker: [] }), budgets).ok).toBe(
-      false,
-    );
+    expect(
+      checkBundle(makeDist({ ...base, worker: [] }), budgets, loose).ok,
+    ).toBe(false);
     expect(
       checkBundle(
         makeDist({
@@ -367,53 +369,98 @@ describe("checkBundle", () => {
         "assets/ExportPanel-e.js": 30 * KB,
       },
     });
-    expect(checkBundle(dir, budgets).ok).toBe(true);
+    expect(checkBundle(dir, budgets, loose).ok).toBe(true);
   });
 
-  it("skips the Stage budget until a Stage chunk exists, then enforces it", () => {
+  it("fails when the Stage chunk is missing unless told it is optional", () => {
     const none = makeDist({
       html: entryHtml(),
       manifest: entryManifest(),
       files: { "assets/index-a.js": 2 * KB },
     });
-    const skipped = checkBundle(none, budgets);
-    expect(row(skipped, "Stage chunk").status).toBe("skipped");
-    expect(skipped.ok).toBe(true);
+    const strict = checkBundle(none, budgets);
+    expect(strict.ok).toBe(false);
+    expect(strict.problems).toContain(
+      "no lazily loaded Stage chunk (src/components/Stage.tsx) in the manifest",
+    );
+    const optional = checkBundle(none, budgets, loose);
+    expect(row(optional, "Stage chunk").status).toBe("skipped");
+    expect(optional.ok).toBe(true);
+  });
 
-    const stage = (stageSize, shared) =>
-      makeDist({
-        html: entryHtml(),
-        manifest: entryManifest({
-          "index.html": {
-            file: "assets/index-a.js",
-            isEntry: true,
-            imports: shared ? ["_shared.js"] : [],
-          },
-          "_shared.js": { file: "assets/shared-s.js" },
-          "src/components/Stage.tsx": {
-            file: "assets/Stage-f.js",
-            src: "src/components/Stage.tsx",
-            isDynamicEntry: true,
-            imports: ["_shared.js", "_gl.js"],
-          },
-          "_gl.js": { file: "assets/gl-g.js" },
-        }),
-        files: {
-          "assets/index-a.js": 2 * KB,
-          "assets/shared-s.js": 4 * KB,
-          "assets/Stage-f.js": stageSize,
-          "assets/gl-g.js": 2 * KB,
+  const stageDist = ({
+    stageSize,
+    shared = false,
+    eager = false,
+    lazyGl = false,
+  }) =>
+    makeDist({
+      html: entryHtml(),
+      manifest: entryManifest({
+        "index.html": {
+          file: "assets/index-a.js",
+          isEntry: true,
+          imports: [
+            ...(shared ? ["_shared.js"] : []),
+            ...(eager ? ["src/components/Stage.tsx"] : []),
+          ],
+          dynamicImports: eager ? [] : ["src/components/Stage.tsx"],
         },
-      });
+        "_shared.js": { file: "assets/shared-s.js" },
+        "src/components/Stage.tsx": {
+          file: "assets/Stage-f.js",
+          src: "src/components/Stage.tsx",
+          isDynamicEntry: !eager,
+          imports: ["_shared.js", ...(lazyGl ? [] : ["_gl.js"])],
+          dynamicImports: lazyGl ? ["_gl.js"] : [],
+        },
+        "_gl.js": { file: "assets/gl-g.js" },
+      }),
+      files: {
+        "assets/index-a.js": 2 * KB,
+        "assets/shared-s.js": 4 * KB,
+        "assets/Stage-f.js": stageSize,
+        "assets/gl-g.js": 2 * KB,
+      },
+    });
+
+  it("enforces the Stage budget over its own imports, not shared first-load files", () => {
     expect(
-      row(checkBundle(stage(4 * KB, false), budgets), "Stage chunk").status,
+      row(checkBundle(stageDist({ stageSize: 4 * KB }), budgets), "Stage chunk")
+        .status,
     ).toBe("fail"); // 4 + 4 shared + 2 gl
-    const sharedCounted = checkBundle(stage(2 * KB, true), budgets);
+    const sharedCounted = checkBundle(
+      stageDist({ stageSize: 2 * KB, shared: true }),
+      budgets,
+    );
     expect(row(sharedCounted, "Stage chunk").files.sort()).toEqual([
       "assets/Stage-f.js",
       "assets/gl-g.js",
     ]);
     expect(row(sharedCounted, "Stage chunk").status).toBe("pass");
+    expect(sharedCounted.ok).toBe(true);
+  });
+
+  it("counts chunks the Stage loads lazily in its own budget", () => {
+    const result = checkBundle(
+      stageDist({ stageSize: 2 * KB, shared: true, lazyGl: true }),
+      budgets,
+    );
+    expect(row(result, "Stage chunk").files.sort()).toEqual([
+      "assets/Stage-f.js",
+      "assets/gl-g.js",
+    ]);
+  });
+
+  it("fails when the Stage is bundled into the first load", () => {
+    const result = checkBundle(
+      stageDist({ stageSize: 1 * KB, eager: true }),
+      budgets,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.problems).toContain(
+      "the Stage chunk is part of first-load JS; it must stay lazily loaded",
+    );
   });
 
   it("fails on a missing module script, a missing file, or a missing manifest", () => {
