@@ -256,7 +256,7 @@ test("algorithm and contrast tools work with keyboard tabs and reduced motion", 
     "true",
   );
   await expect(page.getByText("STATIC VIEW", { exact: true })).toBeVisible();
-  await expect(page.locator(".algorithm-canvas canvas")).toBeVisible();
+  await expect(page.locator(".algorithm-canvas .trace-points")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Replay", exact: true }),
   ).toHaveCount(0);

@@ -1,0 +1,91 @@
+.algorithm-stats {
+  display: flex;
+  gap: 27px;
+  margin-top: 23px;
+}
+.algorithm-stats strong {
+  font: 22px var(--font-mono);
+  color: #eae9e3;
+  display: block;
+}
+.algorithm-stats span {
+  font-size: 10px;
+  color: #969b9d;
+  display: block;
+  margin-top: 5px;
+}
+.algorithm-canvas {
+  position: relative;
+  border: 1px solid #3a3e41;
+  border-radius: 8px;
+  background: #1b1e20;
+  overflow: hidden;
+}
+/* The points and the boxes over them are two canvases on one footprint. */
+.algorithm-renderer {
+  position: relative;
+  height: 360px;
+}
+.algorithm-renderer canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.algorithm-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 18px 12px;
+  color: #a6adae;
+  font-size: 11px;
+}
+.algorithm-scrubber input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  margin: 0;
+  accent-color: #e4c397;
+  cursor: pointer;
+}
+
+@media (max-width: 850px) {
+  .algorithm-panel .panel-intro {
+    display: block;
+  }
+  .algorithm-panel .panel-intro > p {
+    max-width: 550px;
+  }
+  .algorithm-stats {
+    margin-top: 15px;
+  }
+}
+@media (max-width: 580px) {
+  .algorithm-renderer {
+    height: 310px;
+  }
+  .algorithm-stats strong {
+    font-size: 21px;
+  }
+  .algorithm-stats span {
+    font-size: 9px;
+  }
+  .algorithm-scrubber {
+    padding-inline: 13px;
+  }
+}
+/* The same type floors the rest of the page holds: 12px on phones and 13px
+   on wider screens. */
+@media (max-width: 580px) {
+  .algorithm-stats span,
+  .algorithm-scrubber {
+    font-size: 12px;
+  }
+}
+@media (min-width: 851px) {
+  .algorithm-stats span,
+  .algorithm-scrubber {
+    font-size: 13px;
+  }
+}

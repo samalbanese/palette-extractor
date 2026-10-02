@@ -689,9 +689,8 @@ export default function App() {
               {activeTab === "contrast" && <ContrastPanel palette={colors} />}
               {activeTab === "algorithm" && (
                 <PixelSpace
-                  pixels={palette.detail.pixels}
+                  samples={palette.detail.samples}
                   steps={palette.detail.steps}
-                  palette={sorted}
                   colorSpace={palette.detailColorSpace}
                 />
               )}
