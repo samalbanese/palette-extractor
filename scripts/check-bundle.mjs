@@ -87,12 +87,17 @@ export function checkBundle(
       key,
     ]),
   );
-  const closure = (keys, { lazy = false } = {}) => {
+  // `stopAt` names files already counted elsewhere: the walk neither counts
+  // them nor follows their imports, so a lazy chunk that imports the entry
+  // does not pull in the entry's other lazy chunks.
+  const closure = (keys, { lazy = false, stopAt = new Set() } = {}) => {
     const files = new Set();
     const seen = new Set();
     const walk = (key) => {
       if (seen.has(key) || !manifest[key]) return;
       seen.add(key);
+      if (!keys.includes(key) && stopAt.has(canonical(manifest[key].file)))
+        return;
       files.add(canonical(manifest[key].file));
       for (const next of manifest[key].imports ?? []) walk(next);
       if (lazy)
@@ -189,9 +194,9 @@ export function checkBundle(
       problems.push(
         "the Stage chunk is part of first-load JS; it must stay lazily loaded",
       );
-    const stageFiles = [...closure([stageKey], { lazy: true })].filter(
-      (file) => !firstLoad.has(file),
-    );
+    const stageFiles = [
+      ...closure([stageKey], { lazy: true, stopAt: firstLoad }),
+    ].filter((file) => !firstLoad.has(file));
     budgetRow("Stage chunk", stageFiles, budgets.stage);
   } else {
     if (requireStage)

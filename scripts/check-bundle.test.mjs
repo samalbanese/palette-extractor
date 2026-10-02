@@ -452,6 +452,40 @@ describe("checkBundle", () => {
     ]);
   });
 
+  it("leaves other lazy panels out of the Stage budget when the Stage imports the entry", () => {
+    const result = checkBundle(
+      makeDist({
+        html: entryHtml(),
+        manifest: entryManifest({
+          "index.html": {
+            file: "assets/index-a.js",
+            isEntry: true,
+            imports: [],
+            dynamicImports: ["src/components/Stage.tsx", "src/Panel.tsx"],
+          },
+          "src/components/Stage.tsx": {
+            file: "assets/Stage-f.js",
+            src: "src/components/Stage.tsx",
+            isDynamicEntry: true,
+            imports: ["index.html"],
+          },
+          "src/Panel.tsx": {
+            file: "assets/Panel-p.js",
+            isDynamicEntry: true,
+            imports: ["index.html"],
+          },
+        }),
+        files: {
+          "assets/index-a.js": 2 * KB,
+          "assets/Stage-f.js": 1 * KB,
+          "assets/Panel-p.js": 3 * KB,
+        },
+      }),
+      budgets,
+    );
+    expect(row(result, "Stage chunk").files).toEqual(["assets/Stage-f.js"]);
+  });
+
   it("fails when the Stage is bundled into the first load", () => {
     const result = checkBundle(
       stageDist({ stageSize: 1 * KB, eager: true }),
