@@ -134,9 +134,8 @@ function runMedianCut(
   let boxes: Entry[][] = [toEntries(pixels, colorSpace)];
   const populationSplits = Math.ceil(count * 0.75);
   const steps: SplitStep[] = trace ? [snapshot(boxes)] : [];
-  const history: Uint16Array[] = withAssignments
-    ? [boxIndexes(boxes, pixels.length)]
-    : [];
+  // Position of the box replaced at each split, in split order.
+  const splits: number[] = [];
 
   while (boxes.length < count) {
     const byVolume = boxes.length >= populationSplits;
@@ -166,7 +165,7 @@ function runMedianCut(
       | 2;
     boxes.splice(bestIndex, 1, ...splitBox(box, widest));
     if (trace) steps.push(snapshot(boxes));
-    if (withAssignments) history.push(boxIndexes(boxes, pixels.length));
+    splits.push(bestIndex);
   }
 
   const { result, groupOf } = mergeBoxes(
@@ -177,22 +176,27 @@ function runMedianCut(
   );
   if (!withAssignments) return { steps, result };
 
-  const groups = new Uint16Array(pixels.length);
+  const n = pixels.length;
+  const flat = new Uint16Array((splits.length + 1) * n);
+  const last = flat.subarray(splits.length * n);
   boxes.forEach((box, b) => {
-    for (const entry of box) groups[entry.index] = groupOf[b];
+    for (const entry of box) last[entry.index] = b;
   });
-  const flat = new Uint16Array(history.length * pixels.length);
-  history.forEach((row, k) => flat.set(row, k * pixels.length));
+  // A split puts its halves at s and s + 1 and shifts later boxes up by
+  // one, so each earlier row follows from the next without revisiting the
+  // pixels themselves.
+  for (let k = splits.length; k > 0; k--) {
+    const s = splits[k - 1];
+    const next = k * n;
+    const prev = next - n;
+    for (let i = 0; i < n; i++) {
+      const b = flat[next + i];
+      flat[prev + i] = b <= s ? b : b - 1;
+    }
+  }
+  const groups = new Uint16Array(n);
+  for (let i = 0; i < n; i++) groups[i] = groupOf[last[i]];
   return { steps, result, assignments: { groups, boxes: flat } };
-}
-
-/** Which box (by position in `boxes`) holds each input pixel right now. */
-function boxIndexes(boxes: Entry[][], n: number): Uint16Array {
-  const row = new Uint16Array(n);
-  boxes.forEach((box, b) => {
-    for (const entry of box) row[entry.index] = b;
-  });
-  return row;
 }
 
 /**
