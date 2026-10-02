@@ -150,7 +150,7 @@ export function SwatchGrid({
   // The color each swatch last painted, which is where a new melt begins.
   const shown = useRef(new Map<string, RGB>());
   const before = useRef(new Map<string, DOMRect>());
-  const loop = useRef({ frame: 0, requested: 0, endsAt: 0 });
+  const loop = useRef({ frame: 0, timer: 0, requested: 0, endsAt: 0 });
   const finish = useRef(() => {});
 
   const swatchElements = () =>
@@ -228,6 +228,7 @@ export function SwatchGrid({
     const state = loop.current;
     const settle = () => {
       cancelAnimationFrame(state.frame);
+      clearTimeout(state.timer);
       state.frame = 0;
       node.dataset.morph = "idle";
     };
@@ -258,8 +259,20 @@ export function SwatchGrid({
     }
     state.endsAt = now + MORPH_MS;
     node.dataset.morph = "running";
-    request();
-    return () => cancelAnimationFrame(state.frame);
+    // Frames are only needed while some color is still changing. A change
+    // that only moves or adds swatches (including the first palette) keeps
+    // the main thread free and just ends the morph on time.
+    const melting = [...timelines.current.values()].some(
+      ({ from, to, start }) =>
+        start + MORPH_MS > now &&
+        (from.r !== to.r || from.g !== to.g || from.b !== to.b),
+    );
+    if (melting) request();
+    else state.timer = window.setTimeout(settle, MORPH_MS);
+    return () => {
+      cancelAnimationFrame(state.frame);
+      clearTimeout(state.timer);
+    };
   }, [presentation]);
 
   // Turning on reduced motion mid-morph lands everything at once.

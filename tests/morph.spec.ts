@@ -541,3 +541,18 @@ test("selection follows one swatch by its ID, even among repeated colors", async
     `Copy ${await firstHex()} from inspector`,
   );
 });
+
+test("the first palette and a pure sort run the morph without color frames", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await stageDone(page);
+  await expect(grid(page)).toHaveAttribute("data-morph", "idle");
+  // Nothing melts on a first palette, so the page load spends no frames on it.
+  await expect(grid(page)).toHaveAttribute("data-morph-raf", "0");
+  await page.getByLabel("Sort palette").selectOption("luminance");
+  await expect(grid(page)).toHaveAttribute("data-morph", "running");
+  await expect(grid(page)).toHaveAttribute("data-morph", "idle");
+  await expect(grid(page)).toHaveAttribute("data-morph-raf", "0");
+});
