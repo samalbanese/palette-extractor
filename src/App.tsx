@@ -6,6 +6,7 @@ import { ThemePreview } from "./components/ThemePreview";
 import { Atmosphere } from "./components/Atmosphere";
 import { Icon } from "./components/Icon";
 import {
+  type RGB,
   type SortMode,
   rgbToHex,
   rgbToHsl,
@@ -106,6 +107,10 @@ type Tab = (typeof tabs)[number]["id"];
 // On phones the upload button, sample moods and drop/URL row render below the
 // palette instead, so the stage and every swatch fit the first screen.
 const PHONE = "(max-width: 580px)";
+
+// Sizes the dock's hidden inspector row before the first palette; a mid-length
+// color so its values take about as much room as a real one.
+const PLACEHOLDER_COLOR: RGB = { r: 95, g: 146, b: 173 };
 
 export default function App() {
   // Read during the first render so the controls never paint in the wrong
@@ -228,6 +233,9 @@ export default function App() {
       presentation.swatches.find((swatch) => swatch.id === selection.id)) ||
     presentation.swatches[0];
   const selected = selectedSwatch?.color;
+  // Before the first palette arrives the dock keeps its place with a hidden
+  // stand-in color, so nothing below it moves when the palette lands.
+  const inspected = selected ?? PLACEHOLDER_COLOR;
   const showWeights = !!loaded && locked.length === 0;
 
   const copy = (text: string, key: string) => void copyFeedback.copy(text, key);
@@ -607,7 +615,9 @@ export default function App() {
               ))}
             </div>
             <p className="palette-hint">
-              {showWeights
+              {/* Keyed to the chosen photo rather than the finished palette, so
+                  the hint already reads right while the first one loads. */}
+              {source && locked.length === 0
                 ? "Bar widths show color-group share of the sampled image."
                 : source
                   ? "Pinned colors stay with you. Distribution is hidden while colors are locked."
@@ -624,61 +634,63 @@ export default function App() {
             {sourceControls}
           </div>
         )}
-        {selected && (
-          <div className="palette-dock">
-            <div className="inspector">
-              <i style={{ background: rgbToHex(selected) }} />
-              <span>{nearestColorName(selected)}</span>
-              {[
-                rgbToHex(selected),
-                formatRgb(selected),
-                formatHsl(rgbToHsl(selected)),
-              ].map((value) => (
-                <button
-                  key={value}
-                  onClick={() => copy(value, `inspector ${value}`)}
-                  aria-label={`Copy ${value} from inspector`}
-                >
-                  <code>
-                    {copied === `inspector ${value}` ? "Copied!" : value}
-                  </code>
-                </button>
-              ))}
-            </div>
-            <div className="dock-actions">
+        <div className="palette-dock">
+          <div
+            className={`inspector ${selected ? "" : "is-pending"}`}
+            aria-hidden={!selected || undefined}
+          >
+            <i style={{ background: rgbToHex(inspected) }} />
+            <span>{nearestColorName(inspected)}</span>
+            {[
+              rgbToHex(inspected),
+              formatRgb(inspected),
+              formatHsl(rgbToHsl(inspected)),
+            ].map((value) => (
               <button
-                className="button quiet"
-                onClick={() =>
-                  copy(
-                    location.origin +
-                      location.pathname +
-                      encodePaletteHash(colors),
-                    "share",
-                  )
-                }
-                disabled={busy}
+                key={value}
+                onClick={() => copy(value, `inspector ${value}`)}
+                aria-label={`Copy ${value} from inspector`}
+                disabled={!selected}
               >
-                <Icon name={copied === "share" ? "check" : "link"} size={16} />
-                {copied === "share" ? "Link copied" : "Share"}
+                <code>
+                  {copied === `inspector ${value}` ? "Copied!" : value}
+                </code>
               </button>
-              <button
-                className="button quiet"
-                onClick={() => void saveCard()}
-                disabled={busy}
-              >
-                <Icon name="download" size={16} /> Save PNG
-              </button>
-              <button
-                className="button secondary"
-                onClick={() => copy(exportPalette(colors, format), "dock")}
-                disabled={busy}
-              >
-                <Icon name={copied === "dock" ? "check" : "copy"} size={16} />
-                {copied === "dock" ? "Copied" : "Copy palette"}
-              </button>
-            </div>
+            ))}
           </div>
-        )}
+          <div className="dock-actions">
+            <button
+              className="button quiet"
+              onClick={() =>
+                copy(
+                  location.origin +
+                    location.pathname +
+                    encodePaletteHash(colors),
+                  "share",
+                )
+              }
+              disabled={busy || !selected}
+            >
+              <Icon name={copied === "share" ? "check" : "link"} size={16} />
+              {copied === "share" ? "Link copied" : "Share"}
+            </button>
+            <button
+              className="button quiet"
+              onClick={() => void saveCard()}
+              disabled={busy || !selected}
+            >
+              <Icon name="download" size={16} /> Save PNG
+            </button>
+            <button
+              className="button secondary"
+              onClick={() => copy(exportPalette(colors, format), "dock")}
+              disabled={busy || !selected}
+            >
+              <Icon name={copied === "dock" ? "check" : "copy"} size={16} />
+              {copied === "dock" ? "Copied" : "Copy palette"}
+            </button>
+          </div>
+        </div>
         <section className="workbench" aria-label="Explore your palette">
           <div
             className="workbench-nav"
