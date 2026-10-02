@@ -117,6 +117,65 @@ for (const width of [320, 390, 768, 1440]) {
   });
 }
 
+test("How it works counts one color group in the singular", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("tab", { name: "How it works" }).click();
+  const slider = page.getByRole("slider", { name: "Split step" });
+  await slider.press("Home");
+  const stat = page.locator(".algorithm-stats > div").nth(1);
+  await expect(stat.locator("strong")).toHaveText("1");
+  await expect(stat.locator("span")).toHaveText("color group");
+  await slider.press("ArrowRight");
+  await expect(stat.locator("strong")).toHaveText("2");
+  await expect(stat.locator("span")).toHaveText("color groups");
+});
+
+for (const space of ["RGB", "Perceptual"]) {
+  test(`the How it works headings keep apart on a phone in ${space}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await ready(page);
+    await page.evaluate(() => document.fonts.ready);
+    if (space === "Perceptual") {
+      await page.getByText("Perceptual", { exact: true }).click();
+      await ready(page);
+    }
+    await page.getByRole("tab", { name: "How it works" }).click();
+    await expect(page.locator(".cube-topline > span")).toHaveCount(2);
+    const boxes = await page
+      .locator(".cube-topline > span")
+      .evaluateAll((spans) =>
+        spans.map((span) => {
+          const range = document.createRange();
+          range.selectNodeContents(span);
+          const r = range.getBoundingClientRect();
+          return {
+            text: span.textContent,
+            left: r.left,
+            top: r.top,
+            right: r.right,
+            bottom: r.bottom,
+          };
+        }),
+      );
+    expect(boxes).toHaveLength(2);
+    const [first, second] = boxes;
+    expect(first.text).toContain(space === "RGB" ? "RGB" : "OKLAB");
+    expect(intersects(first, second)).toBe(false);
+    // Side by side they need a clear gap; stacked, a clear line gap.
+    const apart = Math.max(
+      second.left - first.right,
+      second.top - first.bottom,
+    );
+    expect(apart).toBeGreaterThanOrEqual(12);
+  });
+}
+
 test("no color name repeats, and the swatches, inspector and JSON export agree", async ({
   page,
 }) => {

@@ -2264,9 +2264,14 @@ select {
   .step-list {
     grid-template-columns: 1fr;
   }
+  /* Both labels fit one line with a clear gap at common phone widths; on
+     the narrowest screens the second drops below the first. */
   .cube-topline {
     font-size: 8px;
     inset: 14px 13px auto;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    letter-spacing: 0;
   }
   .cube-bottomline {
     font-size: 9px;
