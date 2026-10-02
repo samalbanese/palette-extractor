@@ -251,52 +251,126 @@ test("the photo fades under the points from the first stage frame", async ({
   );
 });
 
+type DecodeOutcome = "slow" | "failed";
+
+/**
+ * Holds or fails the stage's own photo decode once `window.__stageDecode` is
+ * set. The app decodes the photo before it loads the stage, so only a decode
+ * asked for while a stage is mounted is the stage's.
+ */
+async function holdStageDecode(page: Page, initial?: DecodeOutcome) {
+  await page.addInitScript((initial) => {
+    const win = window as unknown as { __stageDecode?: string };
+    win.__stageDecode = initial;
+    const original = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = function (this: HTMLImageElement) {
+      const outcome = win.__stageDecode;
+      if (
+        !outcome ||
+        !document.querySelector(".stage-surface") ||
+        !this.matches(".source-frame > img")
+      )
+        return original.call(this);
+      document.body.dataset.stageDecode = outcome;
+      return outcome === "slow"
+        ? new Promise<void>(() => {})
+        : Promise.reject(new DOMException("held", "EncodingError"));
+    };
+  }, initial);
+}
+
+async function setStageDecode(page: Page, outcome: DecodeOutcome) {
+  await page.evaluate((outcome) => {
+    (window as unknown as { __stageDecode?: string }).__stageDecode = outcome;
+  }, outcome);
+}
+
+/** What the source frame shows once the held decode has been asked for. */
+async function frameView(page: Page, outcome: DecodeOutcome) {
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-stage-decode",
+    outcome,
+  );
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
+  return page.locator(".source-frame").evaluate(async (frame) => {
+    const photo = frame.querySelector(":scope > img")!;
+    await Promise.all(photo.getAnimations().map((a) => a.finished));
+    const style = getComputedStyle(frame.querySelector(".stage-surface")!);
+    return {
+      step: frame.querySelector<HTMLElement>(".stage-host")!.dataset.stageStep,
+      covered:
+        style.opacity !== "0" && style.backgroundColor !== "rgba(0, 0, 0, 0)",
+      photo: getComputedStyle(photo).opacity,
+      clouds: frame.querySelectorAll(".stage-points").length,
+    };
+  });
+}
+
 for (const outcome of ["slow", "failed"] as const) {
   test(`the photo stays uncovered while a ${outcome} stage start has drawn nothing`, async ({
     page,
   }) => {
-    // The app decodes the photo before it loads the stage; only a decode
-    // asked for once the stage has mounted is the stage's own.
-    await page.addInitScript((outcome) => {
-      const original = HTMLImageElement.prototype.decode;
-      HTMLImageElement.prototype.decode = function (this: HTMLImageElement) {
-        if (
-          !document.querySelector(".stage-surface") ||
-          !this.matches(".source-frame > img")
-        )
-          return original.call(this);
-        document.body.dataset.stageDecode = outcome;
-        return outcome === "slow"
-          ? new Promise<void>(() => {})
-          : Promise.reject(new DOMException("held", "EncodingError"));
-      };
-    }, outcome);
+    await holdStageDecode(page, outcome);
     await page.goto("/");
-    await expect(page.locator("body")).toHaveAttribute(
-      "data-stage-decode",
-      outcome,
-    );
-    await page.evaluate(
-      () =>
-        new Promise((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(resolve)),
-        ),
-    );
-    const view = await page.locator(".source-frame").evaluate(async (frame) => {
-      const photo = frame.querySelector(":scope > img")!;
-      await Promise.all(photo.getAnimations().map((a) => a.finished));
-      const style = getComputedStyle(frame.querySelector(".stage-surface")!);
-      return {
-        step: frame.querySelector<HTMLElement>(".stage-host")!.dataset
-          .stageStep,
-        covered:
-          style.opacity !== "0" && style.backgroundColor !== "rgba(0, 0, 0, 0)",
-        photo: getComputedStyle(photo).opacity,
-      };
+    expect(await frameView(page, outcome)).toMatchObject({
+      step: undefined,
+      covered: false,
+      photo: "1",
     });
-    expect(view).toEqual({ step: undefined, covered: false, photo: "1" });
+  });
+
+  test(`a stage mounted again after a shared link starts uncovered when ${outcome}`, async ({
+    page,
+  }) => {
+    await holdStageDecode(page);
+    await page.goto("/");
+    await stageDone(page);
+    await page.evaluate(() => (location.hash = "#p=ee5533.2255aa"));
+    await expect(page.locator(".stage-surface")).toHaveCount(0);
+    await setStageDecode(page, outcome);
+    await page.getByRole("button", { name: "Try Forest floor" }).click();
+    expect(await frameView(page, outcome)).toMatchObject({
+      step: undefined,
+      covered: false,
+      photo: "1",
+    });
   });
 }
+
+test("a failed replacement clears the old cloud and Photo still works", async ({
+  page,
+}) => {
+  await holdStageDecode(page);
+  await page.goto("/");
+  await stageDone(page);
+  await setStageDecode(page, "failed");
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  expect(await frameView(page, "failed")).toEqual({
+    step: undefined,
+    covered: false,
+    photo: "1",
+    clouds: 0,
+  });
+  await page.getByRole("button", { name: "Photo", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Photo", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page
+      .locator(".source-frame > img")
+      .evaluate((img) => getComputedStyle(img).opacity),
+  ).toBe("1");
+  expect(
+    await page
+      .locator(".stage-wire")
+      .evaluate((wire) => getComputedStyle(wire).opacity),
+  ).toBe("0");
+});
 
 test("an intro hidden while it starts resumes when the tab returns", async ({
   page,

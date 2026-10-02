@@ -200,9 +200,20 @@ export default function Stage({
       frame = raf(tick);
       parent.dataset.stageLoop = "running";
     };
+    const showPhotoOnly = () => {
+      container.style.opacity = "0";
+      wire.current!.style.opacity = "0";
+      inset.current!.style.opacity = "0";
+      photo.style.opacity = "1";
+    };
     const refresh = () => {
       stop();
-      if (!initialized) return;
+      // Before the first frame, or after a failed start, only the view
+      // choice applies: Photo must still show the photo.
+      if (!initialized) {
+        if (viewRef.current === "photo") showPhotoOnly();
+        return;
+      }
       draw();
       if (active()) {
         frame = raf(tick);
@@ -270,6 +281,12 @@ export default function Stage({
       try {
         await photo.decode();
       } catch {
+        // This photo cannot become points. Show it as it is, with nothing
+        // left over from the cloud it replaces.
+        if (!current()) return;
+        dropStale();
+        delete parent.dataset.stageStep;
+        showPhotoOnly();
         return;
       }
       if (!current()) return;
@@ -356,6 +373,15 @@ export default function Stage({
       photo.style.opacity = "";
     };
   }, [result, host, hero]);
+
+  // The host outlives this component, so a stage mounted later must not
+  // inherit the mark that says a frame is on screen.
+  useEffect(() => {
+    const parent = host.current;
+    return () => {
+      if (parent) delete parent.dataset.stageStep;
+    };
+  }, [host]);
 
   return (
     <>
