@@ -494,7 +494,7 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 35px;
+  min-height: 41px;
   margin-bottom: 15px;
 }
 .section-label h2 {
@@ -516,6 +516,39 @@ code {
   border-radius: 4px;
   padding: 3px 6px;
   color: #aaa;
+}
+/* The source row holds the title, the color space switch and Replace on one
+   line at every width, so nothing in it may wrap or shrink. */
+.source-panel > .section-label {
+  gap: 8px;
+}
+.source-panel > .section-label > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* Sits beside Replace rather than midway along the row. */
+.source-panel > .section-label > .colorspace-switch {
+  margin-left: auto;
+  margin-right: 6px;
+}
+.palette-panel > .section-label {
+  gap: 12px;
+}
+.palette-title {
+  flex: 1;
+  min-width: 0;
+}
+.palette-title h2 {
+  height: 23px;
+}
+/* A second heading line kept at full height while empty, so the color space
+   comparison can appear and disappear without moving anything. */
+.color-comparison {
+  min-height: 18px;
+  line-height: 18px;
+  font-size: 12px;
+  color: #a1a3a4;
+  white-space: nowrap;
 }
 .source-frame {
   height: 327px;
@@ -883,12 +916,6 @@ code {
 .colorspace-switch:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-/* A floated legend joins the flex row like the other toolbar labels
-   instead of being drawn on top of the fieldset. */
-.colorspace-switch legend {
-  float: left;
-  padding: 0;
 }
 .colorspace-options {
   display: flex;
@@ -1871,12 +1898,22 @@ select {
     gap: 14px;
   }
 }
+/* Two columns need about 313px each for the source row; below that the
+   workspace stacks. */
+@media (max-width: 699px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .source-panel > .section-label {
+    min-height: 35px;
+  }
+}
 @media (max-width: 580px) {
   .app-shell {
     padding: 0 20px;
   }
   .site-header {
-    height: 73px;
+    height: 56px;
   }
   .wordmark {
     font-size: 17px;
@@ -1903,12 +1940,12 @@ select {
   }
   .intro {
     display: block;
-    padding: 29px 0 25px;
+    padding: 29px 0 17px;
   }
   .intro h1 {
-    font-size: 34px;
+    font-size: 26px;
     line-height: 1.12;
-    letter-spacing: -1.5px;
+    letter-spacing: -1px;
     max-width: 330px;
     margin: 12px 0;
   }
@@ -1917,8 +1954,12 @@ select {
     line-height: 1.7;
     max-width: 290px;
   }
-  .upload-main {
+  /* Upload, the sample moods and the drop/URL row sit below the palette on
+     phones; Replace in the source row keeps upload on the first screen. */
+  .phone-source-controls {
     margin-top: 21px;
+  }
+  .upload-main {
     width: 100%;
     height: 43px;
   }
@@ -1931,13 +1972,13 @@ select {
   }
   .workspace {
     grid-template-columns: 1fr;
-    gap: 27px;
+    gap: 21px;
   }
   .section-label {
     margin-bottom: 12px;
   }
   .source-frame {
-    height: 245px;
+    height: 220px;
   }
   .sample-row {
     flex-direction: row;
@@ -1968,7 +2009,7 @@ select {
     min-height: 0;
   }
   .swatch-color {
-    height: 102px;
+    height: 84px;
   }
   .swatch-info {
     padding-top: 7px;
@@ -2247,6 +2288,17 @@ select {
     font-size: 8px;
   }
 }
+/* Narrower than about 360px the source row cannot hold all three; the color
+   space switch and Replace drop to a second line together. */
+@media (max-width: 359px) {
+  .source-panel > .section-label {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .source-panel > .section-label > h2 {
+    flex-basis: 100%;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2458,6 +2510,7 @@ select {
   .count-control,
   .count-control output,
   .sort-label,
+  .color-comparison,
   .workbench-nav > button,
   .header-right > a,
   .local-badge,

@@ -16,6 +16,7 @@ import { encodePaletteHash } from "./lib/share";
 import { downloadBlob, renderPaletteCard } from "./lib/paletteCard";
 import { useImageSource, type Source } from "./hooks/useImageSource";
 import { usePalette } from "./hooks/usePalette";
+import { useColorSpaceComparison } from "./hooks/useColorSpaceComparison";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useSharedPalette } from "./hooks/useSharedPalette";
 import type { StageResult } from "./components/Stage";
@@ -100,7 +101,21 @@ const tabs = [
 ] as const;
 type Tab = (typeof tabs)[number]["id"];
 
+// On phones the upload button, sample moods and drop/URL row render below the
+// palette instead, so the stage and every swatch fit the first screen.
+const PHONE = "(max-width: 580px)";
+
 export default function App() {
+  // Read during the first render so the controls never paint in the wrong
+  // place, then kept current as the window crosses the breakpoint.
+  const [phone, setPhone] = useState(() => matchMedia(PHONE).matches);
+  useEffect(() => {
+    const media = matchMedia(PHONE);
+    const update = () => setPhone(media.matches);
+    media.addEventListener("change", update);
+    update();
+    return () => media.removeEventListener("change", update);
+  }, []);
   const [valueKind, setValueKind] = useState<ValueKind>("hex");
   const [format, setFormat] = useState<ExportFormat>("css");
   const [activeTab, setActiveTab] = useState<Tab>("context");
@@ -143,6 +158,12 @@ export default function App() {
     colorSpace,
     changedHexes,
   } = palette;
+  const comparison = useColorSpaceComparison(
+    sorted,
+    palette.detailColorSpace,
+    loaded,
+    changedHexes,
+  );
   const { copied, notice } = copyFeedback;
   const hero = useRef<HTMLImageElement>(null);
   const stageHost = useRef<HTMLDivElement>(null);
@@ -217,6 +238,75 @@ export default function App() {
     }
   };
 
+  const uploadButton = (
+    <button
+      className="button primary upload-main"
+      onClick={() => fileInput.current?.click()}
+    >
+      <Icon name="upload" /> Upload image <span className="shortcut">↗</span>
+    </button>
+  );
+  const sourceControls = (
+    <>
+      <div className="sample-row">
+        <span>Try a different mood</span>
+        <div>
+          {samples.map((sample) => (
+            <button
+              key={sample.src}
+              className={source?.src === sample.src ? "active" : ""}
+              aria-label={`Try ${sample.name}`}
+              aria-pressed={source?.src === sample.src}
+              onClick={() => imageSource.chooseSource(sample)}
+            >
+              <img src={sample.src} alt="" />
+              <span>{sample.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="source-actions">
+        <span>Drop an image anywhere or paste from clipboard</span>
+        <button
+          className="text-button"
+          aria-expanded={showUrl}
+          onClick={() => imageSource.setShowUrl((v) => !v)}
+        >
+          <Icon name="link" size={14} /> Use URL
+        </button>
+      </div>
+      {showUrl && (
+        <form
+          className="url-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void imageSource.loadUrl(url);
+          }}
+        >
+          <label htmlFor="image-url">Public image URL</label>
+          <div>
+            <input
+              autoFocus
+              id="image-url"
+              type="url"
+              required
+              placeholder="https://example.com/image.jpg"
+              value={url}
+              onChange={(e) => imageSource.setUrl(e.target.value)}
+            />
+            <button className="button secondary" disabled={urlBusy}>
+              {urlBusy ? "Loading…" : "Load"}
+            </button>
+          </div>
+          <p>
+            Remote images may be fetched through images.weserv.nl. Local uploads
+            stay on your device.
+          </p>
+        </form>
+      )}
+    </>
+  );
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#workspace">
@@ -258,13 +348,7 @@ export default function App() {
             </h1>
             <p>Find the colors worth keeping. Make something with them.</p>
           </div>
-          <button
-            className="button primary upload-main"
-            onClick={() => fileInput.current?.click()}
-          >
-            <Icon name="upload" /> Upload image{" "}
-            <span className="shortcut">↗</span>
-          </button>
+          {!phone && uploadButton}
         </section>
         <input
           ref={fileInput}
@@ -296,6 +380,32 @@ export default function App() {
               <h2 id="source-heading">
                 <span>01</span> The source
               </h2>
+              <fieldset
+                className="colorspace-switch"
+                disabled={!source || busy}
+              >
+                <legend className="sr-only">Color space</legend>
+                <span className="colorspace-options">
+                  <label className={colorSpace === "rgb" ? "active" : ""}>
+                    <input
+                      type="radio"
+                      name="color-space"
+                      checked={colorSpace === "rgb"}
+                      onChange={() => palette.setColorSpace("rgb")}
+                    />
+                    RGB
+                  </label>
+                  <label className={colorSpace === "oklab" ? "active" : ""}>
+                    <input
+                      type="radio"
+                      name="color-space"
+                      checked={colorSpace === "oklab"}
+                      onChange={() => palette.setColorSpace("oklab")}
+                    />
+                    Perceptual
+                  </label>
+                </span>
+              </fieldset>
               <button
                 className="text-button"
                 onClick={() => fileInput.current?.click()}
@@ -372,68 +482,19 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <div className="sample-row">
-              <span>Try a different mood</span>
-              <div>
-                {samples.map((sample) => (
-                  <button
-                    key={sample.src}
-                    className={source?.src === sample.src ? "active" : ""}
-                    aria-label={`Try ${sample.name}`}
-                    aria-pressed={source?.src === sample.src}
-                    onClick={() => imageSource.chooseSource(sample)}
-                  >
-                    <img src={sample.src} alt="" />
-                    <span>{sample.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="source-actions">
-              <span>Drop an image anywhere or paste from clipboard</span>
-              <button
-                className="text-button"
-                aria-expanded={showUrl}
-                onClick={() => imageSource.setShowUrl((v) => !v)}
-              >
-                <Icon name="link" size={14} /> Use URL
-              </button>
-            </div>
-            {showUrl && (
-              <form
-                className="url-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void imageSource.loadUrl(url);
-                }}
-              >
-                <label htmlFor="image-url">Public image URL</label>
-                <div>
-                  <input
-                    autoFocus
-                    id="image-url"
-                    type="url"
-                    required
-                    placeholder="https://example.com/image.jpg"
-                    value={url}
-                    onChange={(e) => imageSource.setUrl(e.target.value)}
-                  />
-                  <button className="button secondary" disabled={urlBusy}>
-                    {urlBusy ? "Loading…" : "Load"}
-                  </button>
-                </div>
-                <p>
-                  Remote images may be fetched through images.weserv.nl. Local
-                  uploads stay on your device.
-                </p>
-              </form>
-            )}
+            {!phone && sourceControls}
           </section>
           <section className="palette-panel" aria-labelledby="palette-heading">
             <div className="section-label">
-              <h2 id="palette-heading">
-                <span>02</span> The palette <b>{colors.length}</b>
-              </h2>
+              <div className="palette-title">
+                <h2 id="palette-heading">
+                  <span>02</span> The palette <b>{colors.length}</b>
+                </h2>
+                <p className="color-comparison">
+                  {comparison &&
+                    `${comparison.changed} of ${comparison.total} colors changed`}
+                </p>
+              </div>
               <div
                 className="value-switch"
                 role="group"
@@ -514,32 +575,6 @@ export default function App() {
                   <option value="luminance">By lightness</option>
                 </select>
               </label>
-              <fieldset
-                className="colorspace-switch"
-                disabled={!source || busy}
-              >
-                <legend>Color space</legend>
-                <span className="colorspace-options">
-                  <label className={colorSpace === "rgb" ? "active" : ""}>
-                    <input
-                      type="radio"
-                      name="color-space"
-                      checked={colorSpace === "rgb"}
-                      onChange={() => palette.setColorSpace("rgb")}
-                    />
-                    RGB
-                  </label>
-                  <label className={colorSpace === "oklab" ? "active" : ""}>
-                    <input
-                      type="radio"
-                      name="color-space"
-                      checked={colorSpace === "oklab"}
-                      onChange={() => palette.setColorSpace("oklab")}
-                    />
-                    Perceptual
-                  </label>
-                </span>
-              </fieldset>
               {locked.length > 0 && source && (
                 <button
                   className="text-button"
@@ -579,6 +614,12 @@ export default function App() {
             </p>
           </section>
         </div>
+        {phone && (
+          <div className="phone-source-controls">
+            {uploadButton}
+            {sourceControls}
+          </div>
+        )}
         {selected && (
           <div className="palette-dock">
             <div className="inspector">
