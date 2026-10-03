@@ -14,18 +14,33 @@ const shown = (page: Page) =>
     const ctx = copy.getContext("2d")!;
     ctx.drawImage(canvas, 0, 0);
     const { data } = ctx.getImageData(0, 0, copy.width, copy.height);
-    let visible = 0;
-    for (let i = 3; i < data.length; i += 4) if (data[i] > 38) visible++;
+    let visible = 0,
+      left = Infinity,
+      right = -Infinity,
+      top = Infinity,
+      bottom = -Infinity;
+    for (let i = 3; i < data.length; i += 4)
+      if (data[i] > 38) {
+        visible++;
+        const x = ((i - 3) / 4) % copy.width,
+          y = Math.floor((i - 3) / 4 / copy.width);
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
     return {
       step: document.querySelector<HTMLElement>(".stage-host")!.dataset
         .stageStep,
       visible,
+      // The drawn cloud's larger side, in canvas pixels.
+      size: visible ? Math.max(right - left, bottom - top) : 0,
       chips: document.querySelectorAll(".stage-flyer").length,
     };
   }, CURRENT_POINTS);
 
 for (const width of [1440, 390])
-  test(`the cloud condenses into its groups and chips leave from them with no blank frame at ${width}`, async ({
+  test(`the cloud keeps its size and chips leave from its groups with no blank frame at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
@@ -47,24 +62,32 @@ for (const width of [1440, 390])
       .toMatch(/converge|flight/);
     const split = frames[0].visible;
     expect(split).toBeGreaterThan(500);
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 260; i++) {
       const frame = await shown(page);
       frames.push(frame);
-      if (frame.step === "release" || frame.step === "done") break;
+      if (frame.step === "done") break;
       await page.clock.runFor(16);
     }
     const handoff = frames.slice(1).filter((f) => f.step !== "release");
     expect(handoff.length).toBeGreaterThan(5);
-    const report = handoff.map((f) => `${f.step}:${f.visible}/${f.chips}`);
-    // Every frame keeps the condensed groups plainly on screen. A cloud
-    // pulled all the way into its centroids shows well under 5% of the
-    // pixels it showed while splitting.
-    for (const frame of handoff)
+    const report = frames.map(
+      (f) => `${f.step}:${f.visible}/${f.size}/${f.chips}`,
+    );
+    // The cloud the photo became stays the cloud: it never thins out or
+    // shrinks toward its group centers while the chips leave, and never has
+    // to grow back afterwards. Turning alone changes its outline by far less
+    // than these margins.
+    let largest = frames[0].size;
+    for (const frame of frames.slice(1)) {
       expect(frame.visible, report.join(" ")).toBeGreaterThanOrEqual(
-        split * 0.06,
+        split * 0.5,
       );
+      expect(frame.size, report.join(" ")).toBeGreaterThanOrEqual(
+        largest * 0.8,
+      );
+      largest = Math.max(largest, frame.size);
+    }
     // Chips leave while the groups they come from are still showing.
     const launch = handoff.findIndex((f) => f.chips > 0);
     expect(launch, report.join(" ")).toBeGreaterThanOrEqual(0);
-    expect(handoff[launch].visible).toBeGreaterThanOrEqual(split * 0.06);
   });

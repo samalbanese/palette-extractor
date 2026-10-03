@@ -17,17 +17,13 @@ export interface IntroState {
   /** Progress through the recorded splits. */
   split: number;
   /**
-   * Pull toward each group's centroid and color. It stops short of a full
-   * collapse during the intro, so each group stays a visible cluster for its
-   * chip to leave from.
+   * How far each point takes on its group's color. Points stay where they
+   * are, so the cloud keeps its shape while the palette shows through it.
    */
   converge: number;
-  /**
-   * Flyers leaving the cloud for their swatches. It starts slowly, so the
-   * groups stay bright while their chips leave and dim as the chips land.
-   */
+  /** Flyers leaving the cloud for their swatches. It starts slowly. */
   flight: number;
-  /** Points spreading back out to their own colors. */
+  /** Points returning to their own colors. */
   release: number;
   done: boolean;
 }
@@ -42,8 +38,8 @@ const STARTS: [IntroPhase, number][] = [
   ["release", 2700],
 ];
 
-// How far the groups condense before their chips leave.
-export const CONDENSE = 0.8;
+// How far the points take their group's color before the chips leave.
+export const CONDENSE = 0.9;
 
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
@@ -51,7 +47,7 @@ const easeInOutCubic = (t: number) =>
 /**
  * The room a stage keeps for its split boxes: all of it until the chips
  * leave, then none by the end, so the cloud grows into the space the boxes
- * needed while it spreads back out.
+ * needed as they fade.
  */
 export const boxRoom = ({ flight, release }: IntroState) =>
   1 - (flight + release) / 2;

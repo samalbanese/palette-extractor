@@ -3,6 +3,9 @@ import { boxCorners, project, type ViewFit } from "./math";
 import type { DrawState } from "./data";
 import { CONDENSE } from "./timeline";
 
+// Canvases holding boxes from an earlier frame.
+const drawn = new WeakSet<HTMLCanvasElement>();
+
 export function drawOverlay(
   canvas: HTMLCanvasElement,
   steps: SplitStep[],
@@ -20,9 +23,16 @@ export function drawOverlay(
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
   }
+  if (state.phase !== "split" && state.phase !== "converge") {
+    // Once the boxes are gone the layer is emptied by resetting its bitmap:
+    // some accelerated canvases keep showing the last strokes after a
+    // clearRect that nothing is drawn over.
+    if (drawn.delete(canvas)) canvas.width = Math.round(width * dpr);
+    return;
+  }
+  drawn.add(canvas);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  if (state.phase !== "split" && state.phase !== "converge") return;
   const active = Math.min(
     steps.length - 1,
     Math.floor(state.split * steps.length),

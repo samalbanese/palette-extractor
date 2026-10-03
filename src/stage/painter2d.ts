@@ -1,5 +1,16 @@
 import { coverTransform, imagePoint, TILT, viewScale } from "./math";
 import { prepare, type CloudData, type Renderer } from "./data";
+import {
+  cloudAlpha,
+  depthAlpha,
+  depthReach,
+  depthSize,
+  focusAlpha,
+  focusSize,
+  nearness,
+  restSize,
+  tint,
+} from "./look";
 
 const TILT_COS = Math.cos(TILT);
 const TILT_SIN = Math.sin(TILT);
@@ -49,38 +60,39 @@ export function create(canvas: HTMLCanvasElement): Renderer {
     },
     draw(state) {
       if (!data) return;
-      const { samples, cube, fit, order, centroids } = data;
+      const { samples, cube, fit, order } = data;
       ctx.clearRect(0, 0, width, height);
-      const pull = state.converge * (1 - state.release);
-      ctx.globalAlpha =
-        (1 - 0.4 * state.release) *
-        (1 - 0.75 * state.flight * (1 - state.release));
+      const pull = tint(state);
+      const alpha = cloudAlpha(state);
+      const focus = state.focus ?? 0;
       const pitch =
         imageScale *
         Math.sqrt(
           (samples.width * samples.height) / Math.min(4000, order.length),
         );
-      const radius =
-        (pitch * 1.35 * (1 - state.toCloud) + 2.5 * state.toCloud) / 2;
+      const diameter =
+        pitch * 1.35 * (1 - state.toCloud) +
+        restSize(width, height) * state.toCloud;
       const cos = Math.cos(state.angle),
         sin = Math.sin(state.angle);
       const scale = viewScale(width, height, fit, state.angle, state.boxes);
+      const reach = depthReach(fit);
       for (let j = 0; j < Math.min(4000, order.length); j++) {
         const i = order[j],
-          g = samples.groups[i],
-          center = centroids[g]!;
-        // The cube holds 32-bit floats; rounding each pulled coordinate the
-        // same way keeps every point exactly where it has always landed.
-        const x = Math.fround(cube[i * 3] + (center[0] - cube[i * 3]) * pull);
-        const y = Math.fround(
-          cube[i * 3 + 1] + (center[1] - cube[i * 3 + 1]) * pull,
-        );
-        const z = Math.fround(
-          cube[i * 3 + 2] + (center[2] - cube[i * 3 + 2]) * pull,
-        );
+          g = samples.groups[i];
+        const x = cube[i * 3],
+          y = cube[i * 3 + 1],
+          z = cube[i * 3 + 2];
         const cloudX = width / 2 + (x * cos + z * sin) * scale;
         const cloudY =
           height / 2 - (y * TILT_COS - (-x * sin + z * cos) * TILT_SIN) * scale;
+        const near = nearness(x, y, z, cos, sin, reach);
+        const lit = state.lit?.[g] ?? 0;
+        ctx.globalAlpha =
+          alpha * depthAlpha(near, state.toCloud) * focusAlpha(lit, focus);
+        const radius =
+          (diameter * depthSize(near, state.toCloud) * focusSize(lit, focus)) /
+          2;
         const color = samples.groupColors[g];
         const r = Math.round(
           samples.colors[i * 3] * (1 - pull) + color.r * pull,

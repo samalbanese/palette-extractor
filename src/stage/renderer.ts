@@ -7,7 +7,20 @@ import {
   type ViewFit,
 } from "./math";
 import { prepare, yieldTask, type Renderer } from "./data";
+import {
+  DEPTH_FADE,
+  DEPTH_GROW,
+  depthReach,
+  FOCUS_FADE,
+  FOCUS_GROW,
+  FOCUS_SHRINK,
+  REST_FADE,
+  restSize,
+} from "./look";
 import type { StageSamples } from "../lib/extraction";
+
+// A number as a GLSL float literal, so a whole number stays a float.
+const glsl = (n: number) => n.toFixed(6);
 
 const vertex = `#version 300 es
 precision highp float;
@@ -18,8 +31,9 @@ layout(location=3) in float aGroup;
 uniform vec2 uSize;
 uniform vec4 uTime;
 uniform vec4 uView;
-uniform vec3 uCenters[32];
+uniform vec4 uLook;
 uniform vec3 uColors[32];
+uniform float uLit[32];
 out vec4 vColor;
 vec2 projectPoint(vec3 p) {
   float x = p.x*cos(uView.x)+p.z*sin(uView.x);
@@ -29,13 +43,19 @@ vec2 projectPoint(vec3 p) {
 }
 void main() {
   int g = int(aGroup);
-  float pull = uTime.y*(1.-uTime.w);
-  vec3 p = mix(aCube,uCenters[g],pull);
-  vec2 position = mix(aFrame,projectPoint(p),uTime.x);
+  float tint = uTime.y*(1.-uTime.w);
+  float turned = -aCube.x*sin(uView.x)+aCube.z*cos(uView.x);
+  float near = clamp((aCube.y*${glsl(Math.sin(TILT))}+turned*${glsl(Math.cos(TILT))})*uLook.y,-1.,1.);
+  float lit = uLit[g];
+  vec2 position = mix(aFrame,projectPoint(aCube),uTime.x);
   gl_Position = vec4(position/uSize*vec2(2.,-2.)+vec2(-1.,1.),0.,1.);
-  gl_PointSize = uView.y*mix(uView.z,2.5,uTime.x)*(1.-.35*pull);
-  float alpha = mix(1.,.6,uTime.w)*(1.-.75*uTime.z*(1.-uTime.w));
-  vColor = vec4(mix(aColor,uColors[g],pull),alpha);
+  gl_PointSize = uView.y*mix(uView.z,uLook.x,uTime.x)
+    *(1.+${glsl(DEPTH_GROW)}*near*uTime.x)
+    *(1.+(${glsl(FOCUS_GROW)}*lit-${glsl(FOCUS_SHRINK)}*(1.-lit))*uLook.z);
+  float alpha = (1.-${glsl(REST_FADE)}*uTime.w)
+    *(1.-${glsl(DEPTH_FADE)}*(1.-near)*uTime.x*.5)
+    *(1.-${glsl(FOCUS_FADE)}*(1.-lit)*uLook.z);
+  vColor = vec4(mix(aColor,uColors[g],tint),alpha);
 }`;
 const fragment = `#version 300 es
 precision highp float;
@@ -47,6 +67,8 @@ void main() {
   float edge = 1.-smoothstep(.65,1.,radius);
   color = vec4(vColor.rgb,vColor.a*edge);
 }`;
+
+const noneLit = new Float32Array(32);
 
 export function create(canvas: HTMLCanvasElement): Renderer | null {
   const gl = canvas.getContext("webgl2", {
@@ -82,7 +104,7 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
     return buffer;
   });
   const uniforms = Object.fromEntries(
-    ["Size", "Time", "View", "Centers", "Colors"].map((name) => [
+    ["Size", "Time", "View", "Look", "Colors", "Lit"].map((name) => [
       name,
       gl.getUniformLocation(program, `u${name}`),
     ]),
@@ -143,14 +165,11 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
         cube.set(data.cube.subarray(i * 3, i * 3 + 3), j * 3),
       );
       upload(1, cube);
-      const centers = new Float32Array(96),
-        groupColors = new Float32Array(96);
-      data.centroids.forEach((c, i) => centers.set(c ?? [0, 0, 0], i * 3));
+      const groupColors = new Float32Array(96);
       next.groupColors.forEach((c, i) =>
         groupColors.set([c.r / 255, c.g / 255, c.b / 255], i * 3),
       );
       gl.useProgram(program);
-      gl.uniform3fv(uniforms.Centers, centers);
       gl.uniform3fv(uniforms.Colors, groupColors);
       return data;
     },
@@ -169,7 +188,14 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.enable(gl.BLEND);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      // Color blends by the point's alpha; the canvas's own alpha adds up as
+      // coverage, so a point drawn at 50% shows at 50%, not 25%.
+      gl.blendFuncSeparate(
+        gl.SRC_ALPHA,
+        gl.ONE_MINUS_SRC_ALPHA,
+        gl.ONE,
+        gl.ONE_MINUS_SRC_ALPHA,
+      );
       gl.uniform2f(uniforms.Size, width, height);
       gl.uniform4f(
         uniforms.Time,
@@ -192,6 +218,14 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
         pitch * 1.35,
         fit ? viewScale(width, height, fit, state.angle, state.boxes) : 0,
       );
+      gl.uniform4f(
+        uniforms.Look,
+        restSize(width, height),
+        fit ? 1 / depthReach(fit) : 0,
+        state.focus ?? 0,
+        0,
+      );
+      gl.uniform1fv(uniforms.Lit, state.lit ?? noneLit);
       gl.drawArrays(gl.POINTS, 0, Math.min(state.points, order.length));
     },
     onContextLost(callback) {

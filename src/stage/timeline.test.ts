@@ -59,8 +59,8 @@ describe("introState", () => {
     expect(introState(800, 3000).toCloud).toBeCloseTo(0.6, 10);
     expect(introState(1400, 3000).toCloud).toBe(1);
     expect(introState(2000, 3000).split).toBe(1);
-    // The groups condense to 80% before their chips leave.
-    expect(introState(2250, 3000).converge).toBeCloseTo(0.8, 10);
+    // The points take 90% of their group color before the chips leave.
+    expect(introState(2250, 3000).converge).toBeCloseTo(0.9, 10);
     expect(introState(2700, 3000).flight).toBe(1);
   });
 
@@ -74,8 +74,8 @@ describe("introState", () => {
     expect(at(1250).toCloud).toBeCloseTo(0.6 + 0.4 * 0.9375, 6);
     expect(at(1550).split).toBeCloseTo(0.25, 6);
     expect(at(1850).split).toBeCloseTo(0.75, 6);
-    expect(at(2062.5).converge).toBeCloseTo(0.8 * 0.0625, 6);
-    expect(at(2187.5).converge).toBeCloseTo(0.8 * 0.9375, 6);
+    expect(at(2062.5).converge).toBeCloseTo(0.9 * 0.0625, 6);
+    expect(at(2187.5).converge).toBeCloseTo(0.9 * 0.9375, 6);
     expect(at(2362.5).flight).toBeCloseTo(1 / 64, 6);
     expect(at(2587.5).flight).toBeCloseTo(27 / 64, 6);
     expect(at(2775).release).toBeCloseTo(0.0625, 6);

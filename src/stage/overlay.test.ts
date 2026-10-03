@@ -108,3 +108,36 @@ it("fades the boxes out fully before the chips leave, with no last-frame pop", (
   for (let t = 2000; t < 2250; t += 16)
     expect(strongest(t) - strongest(t + 16)).toBeLessThan(0.1);
 });
+
+it("empties the layer by resetting it once the boxes are done, and only then", () => {
+  const { canvas } = recorder();
+  const { fit } = prepare(samples, "rgb");
+  const steps: SplitStep[] = [
+    [{ bounds: { min: [0, 0, 0], max: [255, 255, 255] } }],
+  ] as unknown as SplitStep[];
+  const at = (ms: number): DrawState => ({
+    ...introState(ms, 3000),
+    angle: 0.4,
+    points: 4000,
+    boxes: 1,
+  });
+  let resets = 0;
+  let width = 0;
+  Object.defineProperty(canvas, "width", {
+    get: () => width,
+    set: (value: number) => {
+      width = value;
+      resets++;
+    },
+  });
+  drawOverlay(canvas, steps, at(1600), fit, 300, 200, 1);
+  const sized = resets;
+  drawOverlay(canvas, steps, at(1700), fit, 300, 200, 1);
+  expect(resets).toBe(sized);
+  // The first frame without boxes resets the bitmap; later ones leave it.
+  drawOverlay(canvas, steps, at(2400), fit, 300, 200, 1);
+  expect(resets).toBe(sized + 1);
+  drawOverlay(canvas, steps, at(2500), fit, 300, 200, 1);
+  drawOverlay(canvas, steps, at(3200), fit, 300, 200, 1);
+  expect(resets).toBe(sized + 1);
+});

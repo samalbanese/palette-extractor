@@ -64,6 +64,10 @@ export interface DrawState extends IntroState {
    * show to 0 once only the points need to fit.
    */
   boxes: number;
+  /** How far a focused swatch's groups stand out, from 0 to 1. */
+  focus?: number;
+  /** Per group, 1 when it belongs to the focused swatch, else 0. */
+  lit?: Float32Array;
 }
 export interface Renderer {
   /** Loads a sample set, fitted with `fit` when given, else its own fit. */
