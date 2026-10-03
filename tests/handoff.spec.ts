@@ -181,6 +181,42 @@ test("the share bar and the inspector stay hidden while slots wait", async ({
   await expect.poll(opacities, { timeout: 2000 }).toEqual([1, 1]);
 });
 
+test("text revealed as the colors land is never shown part faded", async ({
+  page,
+}) => {
+  // Every frame from load, the strength the inspector and each swatch label
+  // are drawn at. Text caught between hidden and shown would be too faint to
+  // read, and an accessibility audit taken at that moment fails it.
+  await page.addInitScript(() => {
+    const seen = new Set<string>();
+    (window as unknown as { inspectorSeen: Set<string> }).inspectorSeen = seen;
+    const strength = (el: Element) => {
+      let opacity = 1;
+      for (let node: Element | null = el; node; node = node.parentElement)
+        opacity *= Number(getComputedStyle(node).opacity);
+      return opacity.toFixed(2);
+    };
+    const frame = () => {
+      for (const text of document.querySelectorAll(
+        ".inspector, .swatch-select > span, .swatch-info > span, .swatch-info code",
+      ))
+        seen.add(strength(text));
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+  await page.goto("/");
+  // The intro plays out, so every chip lands on its own.
+  await expect(host(page)).toHaveAttribute("data-stage-done-at", /\d/, {
+    timeout: 15000,
+  });
+  await page.waitForTimeout(500);
+  const seen = await page.evaluate(() => [
+    ...(window as unknown as { inspectorSeen: Set<string> }).inspectorSeen,
+  ]);
+  expect(seen.sort()).toEqual(["0.00", "1.00"]);
+});
+
 test("a pointerdown at 1 s fills every slot at once", async ({ page }) => {
   const read = await watchSwatches(page);
   await page.goto("/");

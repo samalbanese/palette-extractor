@@ -689,8 +689,13 @@ code {
   text-align: right;
   color: #e3e1dc;
 }
+/* The credit sits over the stage, which turns the cloud wherever it is
+   dragged, so the link keeps a full-size target without moving the text. */
 .image-caption a {
   pointer-events: auto;
+  display: inline-block;
+  padding: 6px 0;
+  margin: -6px 0;
 }
 .image-caption a:hover {
   text-decoration: underline;
@@ -847,12 +852,15 @@ code {
   opacity: 0;
 }
 /* The share bar and the inspector would give the colors away before they
-   land, so they wait with the slots and fade in once every swatch is full. */
+   land, so they wait with the slots and rise into place once every swatch is
+   full. They show at full strength at once: a fade would leave their text
+   briefly too faint to read. */
 :is(.distribution, .inspector) {
-  transition: opacity 240ms ease-out;
+  transition: transform 240ms ease-out;
 }
 body:has(.swatch[data-slot]) :is(.distribution, .inspector) {
   opacity: 0;
+  transform: translateY(6px);
   transition: none;
 }
 @keyframes swatch-highlight {

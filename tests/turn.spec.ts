@@ -225,6 +225,20 @@ test("the slider is accessible and shows where focus is", async ({ page }) => {
   await accessible(page);
 });
 
+test("the photo credit over the cloud stays a full-size target", async ({
+  page,
+}) => {
+  const link = page.locator(".image-caption a");
+  const box = (await link.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(24);
+  // Its click goes to the link, not to the cloud behind it.
+  const onLink = await page.evaluate(
+    ([x, y]) => !!document.elementFromPoint(x, y)?.closest(".image-caption a"),
+    [box.x + box.width / 2, box.y + 2],
+  );
+  expect(onLink).toBe(true);
+});
+
 test("phones can still scroll the page past the cloud", async ({ page }) => {
   await expect(turn(page)).toHaveCSS("touch-action", "pan-y");
 });

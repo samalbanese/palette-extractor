@@ -111,15 +111,17 @@ export function dropClaim(end: () => void) {
 }
 
 /**
- * Fills one swatch as its color arrives, fading its labels in. `from` is the
- * hold the color was sent for; a later hold's slots keep waiting.
+ * Fills one swatch as its color arrives, its labels rising into place. They
+ * show at full strength at once: a fade would leave them briefly too faint
+ * to read. `from` is the hold the color was sent for; a later hold's slots
+ * keep waiting.
  */
 export function fillSlot(swatch: HTMLElement | null, from = hold) {
   if (from !== hold || !swatch || !("slot" in swatch.dataset)) return;
   delete swatch.dataset.slot;
   for (const label of swatch.querySelectorAll(LABELS))
-    label.animate([{ opacity: 0 }, {}], {
-      duration: 100,
+    label.animate([{ transform: "translateY(3px)" }, {}], {
+      duration: 160,
       easing: "ease-out",
     });
   if (!slotsHeld()) release();
