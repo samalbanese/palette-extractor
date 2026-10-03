@@ -43,6 +43,9 @@ for (const width of [1440, 390])
   test(`the cloud keeps its size and chips leave from its groups with no blank frame at ${width}`, async ({
     page,
   }) => {
+    // Reads back the whole canvas on up to 260 frames, which a software
+    // renderer on a shared runner can stretch past the default timeout.
+    test.slow();
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.clock.install({ time: 0 });
     await page.clock.pauseAt(1000);

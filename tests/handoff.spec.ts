@@ -499,9 +499,17 @@ test("a new photo waits as slots on the short intro; same-photo changes never do
     "data-morph",
     "idle",
   );
-  await stageDone(page);
+  // The switch can report done before its re-extraction even starts, so
+  // this waits for the Perceptual cloud, then for the reorder to settle.
+  await expect(host(page)).toHaveAttribute("data-stage-space", "oklab");
+  await expect(page.locator(".swatch-grid")).toHaveAttribute(
+    "data-morph",
+    "idle",
+  );
+  await expect
+    .poll(async () => (await read()).now.every((s) => s === "filled"))
+    .toBe(true);
   expect((await read()).slotSeen).toBe(false);
-  expect((await read()).now.every((s) => s === "filled")).toBe(true);
 
   // A new photo does, and its short intro fills them all on time.
   await page.getByRole("button", { name: "Try Forest floor" }).click();

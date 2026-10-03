@@ -205,9 +205,14 @@ test("a new photo shows only old or new colors; a shared link from a photo melts
     );
   // Every value written to a swatch, as it is written.
   await page.evaluate(() => {
-    const w = window as unknown as { __written: string[]; __flown: string[] };
+    const w = window as unknown as {
+      __written: string[];
+      __flown: string[];
+      __steps: string[];
+    };
     w.__written = [];
     w.__flown = [];
+    w.__steps = [];
     const record = () => {
       for (const el of document.querySelectorAll<HTMLElement>(".swatch"))
         w.__written.push(getComputedStyle(el).getPropertyValue("--swatch"));
@@ -222,6 +227,10 @@ test("a new photo shows only old or new colors; a shared link from a photo melts
           if ((node as HTMLElement).classList?.contains("stage-flyer"))
             w.__flown.push((node as HTMLElement).style.background);
     }).observe(document.body, { childList: true, subtree: true });
+    const host = document.querySelector<HTMLElement>(".stage-host")!;
+    new MutationObserver(() =>
+      w.__steps.push(host.dataset.stageStep ?? ""),
+    ).observe(host, { attributes: true, attributeFilter: ["data-stage-step"] });
     const sample = () => {
       record();
       requestAnimationFrame(sample);
@@ -249,15 +258,18 @@ test("a new photo shows only old or new colors; a shared link from a photo melts
   await expect.poll(async () => (await frame(page)).hexes).toEqual(forest);
   await expect(grid(page)).toHaveAttribute("data-morph", "idle");
   const fresh = (await frame(page)).hexes;
-  const { written, flown } = await page.evaluate(() => ({
+  const { written, flown, steps } = await page.evaluate(() => ({
     written: (window as unknown as { __written: string[] }).__written,
     flown: (window as unknown as { __flown: string[] }).__flown,
+    steps: (window as unknown as { __steps: string[] }).__steps,
   }));
   const allowed = new Set([...old, ...fresh]);
   expect(written.length).toBeGreaterThan(0);
   expect(written.filter((hex) => !allowed.has(hex.trim()))).toEqual([]);
-  // Flyers carry the new colors; every swatch lands a flyer or pulses.
-  expect(flown.length).toBeGreaterThan(0);
+  // Flyers carry the new colors; every swatch lands a flyer or pulses. A
+  // stage that starts after the palette's deadline skips its flight, and
+  // its swatches only pulse.
+  if (steps.includes("flight")) expect(flown.length).toBeGreaterThan(0);
   const freshRgb = fresh.map((hex) => {
     const { r, g, b } = hexToRgb(hex);
     return `rgb(${r}, ${g}, ${b})`;
