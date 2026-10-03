@@ -61,6 +61,8 @@ export function cloudAtRest({ angle, points }: TraceState): DrawState {
     done: true,
     angle,
     points,
+    // The trace draws its boxes at every step.
+    boxes: 1,
   };
 }
 

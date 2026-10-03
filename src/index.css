@@ -609,6 +609,24 @@ code {
   opacity: 0;
   pointer-events: none;
 }
+/* Drag sideways to turn the cloud; vertical swipes still scroll the page. */
+.stage-turn {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: pan-y;
+  border-radius: 8px;
+}
+.stage-turn[data-held] {
+  cursor: grabbing;
+}
+.stage-turn:focus-visible {
+  outline-offset: -4px;
+}
+.stage-host:not([data-stage-step]) .stage-turn {
+  display: none;
+}
 .stage-switch {
   position: absolute;
   top: 12px;

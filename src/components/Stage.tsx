@@ -9,8 +9,14 @@ import { create as createGL } from "../stage/renderer";
 import { create as create2D } from "../stage/painter2d";
 import { drawOverlay } from "../stage/overlay";
 import { flyerOrigins, project } from "../stage/math";
-import { introLength, introState, SHORT_INTRO_MS } from "../stage/timeline";
+import {
+  boxRoom,
+  introLength,
+  introState,
+  SHORT_INTRO_MS,
+} from "../stage/timeline";
 import { createQualityMonitor } from "../stage/quality";
+import { AUTO_SPIN, coast, dragTurn, flingSpin } from "../stage/turn";
 import { launchFlyers } from "../stage/flyers";
 import { yieldTask, type CloudData, type Renderer } from "../stage/data";
 import {
@@ -45,6 +51,7 @@ export default function Stage({
   const wire = useRef<HTMLCanvasElement>(null);
   const portal = useRef<HTMLDivElement>(null);
   const inset = useRef<HTMLImageElement>(null);
+  const turner = useRef<HTMLDivElement>(null);
   const previous = useRef<Source | null>(null);
   const generation = useRef(0);
   const controls = useRef({ refresh: () => {}, skip: () => {} });
@@ -55,7 +62,8 @@ export default function Stage({
   useEffect(() => {
     const parent = host.current!,
       container = surface.current!,
-      photo = hero.current!;
+      photo = hero.current!,
+      layer = turner.current!;
     const token = ++generation.current;
     let disposed = false,
       renderer: Renderer | null = null,
@@ -69,7 +77,6 @@ export default function Stage({
       height = 1,
       dpr = 1,
       elapsed = 0,
-      rotation = 0,
       last = 0,
       lastDraw = 0,
       lastHook = 0,
@@ -79,6 +86,14 @@ export default function Stage({
       done = false,
       launched = false;
     let started = false;
+    // How far the cloud has turned from where it rests, and how fast it is
+    // turning. It turns slowly by itself, stops while a hand holds it or the
+    // keyboard is turning it, and eases back into the slow turn after.
+    let yaw = 0,
+      spin = AUTO_SPIN,
+      keyed = false;
+    let hand: { id: number; x: number; turned: number } | null = null;
+    const moves: [number, number][] = [];
     // Set once the palette's deadline passes; the next frame ends the intro,
     // so a paused or slow intro never sends chips to swatches already shown.
     let overdue = false;
@@ -132,7 +147,7 @@ export default function Stage({
     // Sends each color from the centre of its group to its swatch. Once the
     // intro is over, or with reduced motion, nothing flies and swatches only
     // pulse.
-    const launch = (angle: number) => {
+    const launch = (angle: number, boxes = 1) => {
       launched = true;
       const origins = flyerOrigins(
         data.centroids,
@@ -145,7 +160,7 @@ export default function Stage({
         portal.current!,
         origins.map((p) => {
           if (!p || done || reduced) return null;
-          const [x, y] = project(p, angle, width, height, data.fit);
+          const [x, y] = project(p, angle, width, height, data.fit, boxes);
           return { x: rect.left + x, y: rect.top + y };
         }),
         result.swatches,
@@ -161,11 +176,14 @@ export default function Stage({
     const draw = () => {
       if (!initialized || !current()) return;
       if (overdue && !done) markDone(true);
+      const intro = introState(done ? length : elapsed, length);
       const state = {
-        ...introState(done ? length : elapsed, length),
-        angle: -Math.PI / 4 + (reduced ? 0 : (rotation * Math.PI * 2) / 24000),
+        ...intro,
+        angle: -Math.PI / 4 + yaw,
         points: fallback ? 4000 : quality.points,
+        boxes: boxRoom(intro),
       };
+      parent.dataset.stageAngle = String(degrees());
       if (state.done) markDone(false);
       if (!started && !done) {
         started = true;
@@ -202,7 +220,7 @@ export default function Stage({
         !launched &&
         (state.phase === "flight" || state.phase === "release" || state.done)
       )
-        launch(state.angle);
+        launch(state.angle, state.boxes);
       if (state.release > 0) flights?.pulseRemaining();
       if (done) flights?.landAll();
     };
@@ -222,7 +240,11 @@ export default function Stage({
       const delta = last ? now - last : 0;
       last = now;
       elapsed += delta;
-      rotation += delta;
+      if (!hand && !keyed) {
+        const next = coast(spin, delta);
+        spin = next.spin;
+        turnBy(next.turned);
+      }
       if (!fallback) quality.record(delta);
       if (
         !fallback ||
@@ -234,6 +256,69 @@ export default function Stage({
       }
       frame = raf(tick);
       parent.dataset.stageLoop = "running";
+    };
+    // Whole degrees from rest, as the slider reports them.
+    const degrees = () => Math.round((yaw * 180) / Math.PI) % 360;
+    const turnBy = (radians: number) => {
+      const full = 2 * Math.PI;
+      yaw = (((yaw + radians) % full) + full) % full;
+      const value = String(degrees());
+      if (layer.getAttribute("aria-valuenow") === value) return;
+      layer.setAttribute("aria-valuenow", value);
+      layer.setAttribute("aria-valuetext", `${value} degrees`);
+    };
+    // With reduced motion, or anything else stopping the loop, a turn by
+    // hand still shows at once.
+    const turned = () => {
+      if (!frame) draw();
+    };
+    const grab = (event: PointerEvent) => {
+      if (!event.isPrimary || event.button !== 0 || !initialized) return;
+      // Focus is for the keyboard; a hand turns the cloud without it.
+      event.preventDefault();
+      layer.setPointerCapture(event.pointerId);
+      hand = { id: event.pointerId, x: event.clientX, turned: 0 };
+      keyed = false;
+      spin = 0;
+      moves.length = 0;
+      moves.push([event.timeStamp, 0]);
+      layer.dataset.held = "";
+    };
+    const drag = (event: PointerEvent) => {
+      if (event.pointerId !== hand?.id) return;
+      const by = dragTurn(event.clientX - hand.x, width);
+      hand.x = event.clientX;
+      hand.turned += by;
+      moves.push([event.timeStamp, hand.turned]);
+      if (moves.length > 32) moves.shift();
+      turnBy(by);
+      turned();
+    };
+    const letGo = (event: PointerEvent) => {
+      if (event.pointerId !== hand?.id) return;
+      hand = null;
+      delete layer.dataset.held;
+      spin = reduced ? 0 : flingSpin(moves, event.timeStamp);
+    };
+    const STEPS: Record<string, number> = {
+      ArrowRight: 10,
+      ArrowUp: 10,
+      ArrowLeft: -10,
+      ArrowDown: -10,
+      PageUp: 45,
+      PageDown: -45,
+    };
+    const press = (event: KeyboardEvent) => {
+      if (event.key === "Home") turnBy(-yaw);
+      else if (event.key in STEPS) turnBy((STEPS[event.key] * Math.PI) / 180);
+      else return;
+      event.preventDefault();
+      keyed = true;
+      spin = 0;
+      turned();
+    };
+    const leave = () => {
+      keyed = false;
     };
     const showPhotoOnly = () => {
       container.style.opacity = "0";
@@ -403,6 +488,14 @@ export default function Stage({
     const sizing = new ResizeObserver(resize);
     sizing.observe(parent);
     media.addEventListener("change", preference);
+    turnBy(0);
+    layer.addEventListener("pointerdown", grab);
+    layer.addEventListener("pointermove", drag);
+    layer.addEventListener("pointerup", letGo);
+    layer.addEventListener("pointercancel", letGo);
+    layer.addEventListener("lostpointercapture", letGo);
+    layer.addEventListener("keydown", press);
+    layer.addEventListener("blur", leave);
     window.addEventListener("pointerdown", skip);
     window.addEventListener("keydown", skip);
     window.addEventListener("scroll", finishFlight, true);
@@ -421,6 +514,14 @@ export default function Stage({
       intersection.disconnect();
       sizing.disconnect();
       media.removeEventListener("change", preference);
+      layer.removeEventListener("pointerdown", grab);
+      layer.removeEventListener("pointermove", drag);
+      layer.removeEventListener("pointerup", letGo);
+      layer.removeEventListener("pointercancel", letGo);
+      layer.removeEventListener("lostpointercapture", letGo);
+      layer.removeEventListener("keydown", press);
+      layer.removeEventListener("blur", leave);
+      delete layer.dataset.held;
       window.removeEventListener("pointerdown", skip);
       window.removeEventListener("keydown", skip);
       window.removeEventListener("scroll", finishFlight, true);
@@ -449,6 +550,18 @@ export default function Stage({
         aria-hidden={view === "photo"}
       />
       <canvas className="stage-wire" ref={wire} aria-hidden="true" />
+      <div
+        className="stage-turn"
+        ref={turner}
+        role="slider"
+        tabIndex={0}
+        aria-label="Turn the color cloud"
+        aria-valuemin={0}
+        aria-valuemax={359}
+        aria-valuenow={0}
+        aria-valuetext="0 degrees"
+        hidden={view === "photo"}
+      />
       <img className="stage-inset" ref={inset} src={result.image.src} alt="" />
       <div
         className="value-switch stage-switch"

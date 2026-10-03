@@ -36,7 +36,7 @@ export function drawOverlay(
     ctx.beginPath();
     step.forEach(({ bounds }) => {
       const corners = boxCorners(bounds, fit).map((p) =>
-        project(p, state.angle, width, height, fit),
+        project(p, state.angle, width, height, fit, state.boxes),
       );
       corners.forEach((p, i) => {
         for (let k = 0; k < 3; k++)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FULL_INTRO_MS,
   SHORT_INTRO_MS,
+  boxRoom,
   introLength,
   introState,
 } from "./timeline";
@@ -106,5 +107,21 @@ describe("introState", () => {
         done: true,
       });
     expect(introState(2999.9, 3000).done).toBe(false);
+  });
+});
+
+describe("boxRoom", () => {
+  it("keeps all the room while boxes can show, then lets it go by the end", () => {
+    for (const t of [0, 800, 1400, 2000, 2249])
+      expect(boxRoom(introState(t, FULL_INTRO_MS))).toBe(1);
+    expect(boxRoom(introState(FULL_INTRO_MS, FULL_INTRO_MS))).toBe(0);
+    let last = 1;
+    for (let t = 2250; t <= FULL_INTRO_MS; t += 10) {
+      const room = boxRoom(introState(t, FULL_INTRO_MS));
+      expect(room).toBeLessThanOrEqual(last);
+      // Never a jump a viewer would see in one frame.
+      expect(last - room).toBeLessThan(0.06);
+      last = room;
+    }
   });
 });

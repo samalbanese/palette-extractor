@@ -51,6 +51,7 @@ function reference(
       width,
       height,
       fit,
+      state.boxes,
     );
     const frame = imagePoint(
       samples.positions[i * 2],
@@ -116,6 +117,8 @@ it("draws exactly what it drew before, frame after frame", async () => {
     release,
     angle,
     points: 4000,
+    // Room for boxes eases away as the chips leave and the points spread.
+    boxes: 1 - (flight + release) / 2,
   }));
   for (const state of states) {
     painter.calls.length = 0;

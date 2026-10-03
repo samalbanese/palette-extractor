@@ -59,6 +59,11 @@ export type CloudData = ReturnType<typeof prepare>;
 export interface DrawState extends IntroState {
   angle: number;
   points: number;
+  /**
+   * How much room the view keeps for the split boxes, from 1 while they can
+   * show to 0 once only the points need to fit.
+   */
+  boxes: number;
 }
 export interface Renderer {
   /** Loads a sample set, fitted with `fit` when given, else its own fit. */

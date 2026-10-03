@@ -190,7 +190,7 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
         state.angle,
         dpr,
         pitch * 1.35,
-        fit ? viewScale(width, height, fit) : 0,
+        fit ? viewScale(width, height, fit, state.angle, state.boxes) : 0,
       );
       gl.drawArrays(gl.POINTS, 0, Math.min(state.points, order.length));
     },

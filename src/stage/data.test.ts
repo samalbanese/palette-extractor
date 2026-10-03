@@ -51,12 +51,11 @@ it("holds every point, and so every centroid, in fitted coordinates", () => {
       data.cube.subarray(i * 3, i * 3 + 3),
       fitPoint([raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]], data.fit),
     );
-  // The fitted cloud is centered on its mean.
-  for (let k = 0; k < 3; k++)
-    expect(data.cube[k] + data.cube[3 + k] + data.cube[6 + k]).toBeCloseTo(
-      0,
-      3,
-    );
+  // The fitted cloud is centered on the middle of its range.
+  for (let k = 0; k < 3; k++) {
+    const values = [0, 1, 2].map((i) => data.cube[i * 3 + k]);
+    expect(Math.min(...values) + Math.max(...values)).toBeCloseTo(0, 3);
+  }
 });
 
 it("uses a fit it is given, so a subset lines up with the whole set", () => {

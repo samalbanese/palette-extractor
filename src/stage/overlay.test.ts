@@ -48,6 +48,7 @@ const state: DrawState = {
   done: false,
   angle: 0.9,
   points: 3,
+  boxes: 1,
 };
 
 it("draws box corners where the points of those colors are drawn", () => {
@@ -91,7 +92,12 @@ it("fades the boxes out fully before the chips leave, with no last-frame pop", (
   ];
   const strongest = (elapsed: number) => {
     const { alphas, canvas } = recorder();
-    const at = { ...introState(elapsed, 3000), angle: 0.9, points: 3 };
+    const at = {
+      ...introState(elapsed, 3000),
+      angle: 0.9,
+      points: 3,
+      boxes: 1,
+    };
     drawOverlay(canvas, [step], at, data.fit, 640, 360, 1);
     return Math.max(0, ...alphas);
   };

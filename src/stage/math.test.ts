@@ -270,7 +270,7 @@ function screen(
 }
 
 describe("fitView", () => {
-  it("centers on the mean and bounds the reach across and up the screen at any yaw", () => {
+  it("centers on the middle of the range and bounds the reach across and up the screen at any yaw", () => {
     const fit = fitView(boxCloud([30, 20, 10], [10, 20, 5]));
     expect(fit.center[0]).toBeCloseTo(10, 5);
     expect(fit.center[1]).toBeCloseTo(20, 5);
@@ -336,19 +336,34 @@ describe("fitView", () => {
     );
   });
 
+  it("turns a lopsided cloud about the middle of its range, not its mean", () => {
+    // Most pixels dark, one bright: the mean sits near the dark end.
+    const cube = new Float32Array(30);
+    for (let i = 0; i < 9; i++) cube.set([-100, -100, -100], i * 3);
+    cube.set([100, 100, 100], 27);
+    const fit = fitView(cube);
+    expect(fit.center).toEqual([0, 0, 0]);
+    // Either end reaches as far: 100 on each axis, where the bright pixel
+    // would reach 180 from the mean.
+    expect(fit.reachX).toBeCloseTo(100 * Math.SQRT2, 3);
+  });
+
   it("clamps the reach for a flat image so it stays a dot", () => {
     const flat = fitView(new Float32Array([12, -40, 7, 12, -40, 7]));
     const clamped = { reachX: 12, reachY: 12, boxX: 12, boxY: 12 };
-    expect(flat).toEqual({ center: [12, -40, 7], ...clamped });
-    expect(fitView(new Float32Array([0, 0, 0, 3, 0, 0]))).toEqual({
+    expect(flat).toMatchObject({ center: [12, -40, 7], ...clamped });
+    expect(fitView(new Float32Array([0, 0, 0, 3, 0, 0]))).toMatchObject({
       center: [1.5, 0, 0],
       ...clamped,
     });
-    expect(fitView(new Float32Array(0))).toEqual({
+    expect(fitView(new Float32Array(0))).toMatchObject({
       center: [0, 0, 0],
       ...clamped,
     });
     expect(viewScale(400, 300, flat)).toBeCloseTo((150 - 22) / 12, 9);
+    // Turning never magnifies it either.
+    for (const angle of YAWS)
+      expect(viewScale(400, 300, flat, angle)).toBeCloseTo((150 - 22) / 12, 9);
   });
 
   it("keeps split boxes in the frame when they cover pixels the samples missed", () => {
@@ -463,6 +478,225 @@ describe("fitView", () => {
             expect(box.bottom).toBeLessThanOrEqual(height - 2 + 1e-6);
           }
       });
+});
+
+/**
+ * A thin streak of sea and sky blues: long one way, narrow the others, so
+ * how much room it needs depends on the angle it is seen from.
+ */
+function streak() {
+  const cube = new Float32Array(400 * 3);
+  for (let i = 0; i < 400; i++) {
+    const t = i / 399;
+    const wobble = 3 * Math.sin(i * 12.9898);
+    cube.set(
+      [-60 + 120 * t + wobble, -20 + 30 * t, -70 + 110 * t - wobble],
+      i * 3,
+    );
+  }
+  return cube;
+}
+
+const MARGIN = 22;
+
+/**
+ * At one yaw and share of room for boxes, the nearest any point comes to
+ * the margin, and any corner of the box around the points (and of `box`,
+ * when given) to the edge. Each is negative once something has crossed.
+ */
+function clearance(
+  cube: Float32Array,
+  fit: ViewFit,
+  angle: number,
+  width: number,
+  height: number,
+  boxes = 1,
+  box?: { min: Pixel; max: Pixel },
+) {
+  const scale = viewScale(width, height, fit, angle, boxes);
+  const cos = Math.cos(angle),
+    sin = Math.sin(angle);
+  const place = ([x, y, z]: Vec3) => [
+    (x * cos + z * sin) * scale,
+    (y * COS - (-x * sin + z * cos) * SIN) * scale,
+  ];
+  let points = Infinity;
+  const min = [Infinity, Infinity, Infinity],
+    max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < cube.length; i += 3) {
+    const [x, y] = place(fitPoint([cube[i], cube[i + 1], cube[i + 2]], fit));
+    points = Math.min(
+      points,
+      width / 2 - MARGIN - Math.abs(x),
+      height / 2 - MARGIN - Math.abs(y),
+    );
+    for (let k = 0; k < 3; k++) {
+      min[k] = Math.min(min[k], cube[i + k] + 127.5);
+      max[k] = Math.max(max[k], cube[i + k] + 127.5);
+    }
+  }
+  let corners = Infinity;
+  for (const b of [{ min, max } as { min: Pixel; max: Pixel }, box])
+    if (b)
+      for (const corner of boxCorners(b, fit)) {
+        const [x, y] = place(corner);
+        corners = Math.min(
+          corners,
+          width / 2 - 2 - Math.abs(x),
+          height / 2 - 2 - Math.abs(y),
+        );
+      }
+  return { points, corners };
+}
+
+// Half-degree steps, offset to fall between the yaws a fit measures.
+const FINE_YAWS = Array.from(
+  { length: 720 },
+  (_, k) => ((k + 0.37) / 720) * 2 * Math.PI,
+);
+
+describe("viewScale at a yaw", () => {
+  const clouds: [string, () => Float32Array][] = [
+    ["a thin streak", streak],
+    ...SAMPLES.flatMap((name) =>
+      SPACES.map((space): [string, () => Float32Array] => [
+        `${name} (${space})`,
+        () => fixtureCube(name, space),
+      ]),
+    ),
+  ];
+
+  for (const [name, make] of clouds)
+    it(`keeps ${name} inside the margin at every yaw, and its box inside the edge while boxes show`, () => {
+      const cube = make();
+      const fit = fitView(cube);
+      for (const boxes of [1, 0.5, 0])
+        for (const [width, height] of FRAMES)
+          for (const angle of FINE_YAWS) {
+            const { points, corners } = clearance(
+              cube,
+              fit,
+              angle,
+              width,
+              height,
+              boxes,
+            );
+            expect(points).toBeGreaterThanOrEqual(-1e-6);
+            if (boxes === 1) expect(corners).toBeGreaterThanOrEqual(-1e-6);
+          }
+    });
+
+  it("keeps split boxes over skipped colors inside the edge at every yaw", () => {
+    const gray = colorPoint([128, 128, 128], "rgb");
+    const cube = new Float32Array([...gray, ...gray]);
+    const extent = {
+      min: [128, 0, 0] as Pixel,
+      max: [255, 128, 128] as Pixel,
+    };
+    const fit = fitView(cube, extent);
+    for (const [width, height] of FRAMES)
+      for (const angle of FINE_YAWS)
+        expect(
+          clearance(cube, fit, angle, width, height, 1, extent).corners,
+        ).toBeGreaterThanOrEqual(-1e-6);
+  });
+
+  for (const [name, make] of clouds)
+    it(`never draws ${name} smaller than the size that fits every yaw, nor past 2.5 times it`, () => {
+      const fit = fitView(make());
+      for (const boxes of [1, 0])
+        for (const [width, height] of FRAMES) {
+          const still = viewScale(width, height, fit, undefined, boxes);
+          for (const angle of FINE_YAWS) {
+            const scale = viewScale(width, height, fit, angle, boxes);
+            expect(scale).toBeGreaterThanOrEqual(still * (1 - 1e-9));
+            expect(scale).toBeLessThanOrEqual(still * 2.5 * (1 + 1e-9));
+          }
+        }
+    });
+
+  it("zooms a thin streak in where it looks shortest", () => {
+    const fit = fitView(streak());
+    // Seen along its length, the streak's 120 across and 110 deep cancel.
+    const endOn = Math.atan2(-120, 110);
+    for (const [width, height] of FRAMES) {
+      const still = viewScale(width, height, fit, undefined, 0);
+      expect(viewScale(width, height, fit, endOn, 0)).toBeGreaterThanOrEqual(
+        still * 2,
+      );
+    }
+  });
+
+  it("draws Golden dunes larger at rest than while its boxes show", () => {
+    // In RGB its colors fill a slanted slab whose box corners sit well
+    // outside the points.
+    const fit = fitView(fixtureCube("Golden dunes", "rgb"));
+    for (const [width, height] of FRAMES.slice(0, 2)) {
+      const rest = viewScale(width, height, fit, -Math.PI / 4, 0);
+      expect(rest).toBeGreaterThanOrEqual(
+        viewScale(width, height, fit, -Math.PI / 4, 1) * 1.25,
+      );
+      expect(rest).toBeGreaterThanOrEqual(viewScale(width, height, fit) * 1.5);
+    }
+  });
+
+  for (const [name, make] of clouds)
+    it(`eases the zoom on ${name} as it turns, never jumping`, () => {
+      const fit = fitView(make());
+      const step = (2 * Math.PI) / 2880;
+      for (const boxes of [1, 0.4, 0])
+        for (const [width, height] of FRAMES) {
+          let last = Math.log(viewScale(width, height, fit, 0, boxes));
+          for (let k = 1; k <= 2880; k++) {
+            const next = Math.log(
+              viewScale(width, height, fit, k * step, boxes),
+            );
+            // At most 1.2 in log scale per radian: about 2% per degree.
+            expect(Math.abs(next - last)).toBeLessThanOrEqual(
+              1.2 * step + 1e-9,
+            );
+            last = next;
+          }
+        }
+    });
+
+  it("moves evenly between the sizes with and without room for boxes", () => {
+    const fit = fitView(fixtureCube("Golden dunes", "rgb"));
+    for (const angle of [-Math.PI / 4, 1.9, 4.4]) {
+      const full = viewScale(600, 400, fit, angle, 1);
+      const none = viewScale(600, 400, fit, angle, 0);
+      expect(none).toBeGreaterThanOrEqual(full);
+      if (angle < 0) expect(none).toBeGreaterThan(full * 1.1);
+      expect(viewScale(600, 400, fit, angle, 0.5)).toBeCloseTo(
+        Math.sqrt(full * none),
+        9,
+      );
+    }
+  });
+
+  it("projects with the scale for the yaw and box room it is given", () => {
+    const fit = fitView(streak());
+    const p: Vec3 = [40, -10, 25];
+    for (const angle of [0, 0.3, 2.2, -4])
+      for (const boxes of [1, 0.3, 0]) {
+        const scale = viewScale(600, 400, fit, angle, boxes);
+        const [x] = project(p, angle, 600, 400, fit, boxes);
+        const across = p[0] * Math.cos(angle) + p[2] * Math.sin(angle);
+        expect(x).toBeCloseTo(300 + across * scale, 9);
+      }
+  });
+
+  it("keeps one size at every yaw for a fit built by hand", () => {
+    for (const angle of YAWS)
+      expect(viewScale(600, 327, CUBE_FIT, angle)).toBe(
+        viewScale(600, 327, CUBE_FIT),
+      );
+  });
+
+  it("never gives a negative scale for a frame smaller than its margins", () => {
+    const fit = fitView(streak());
+    for (const angle of YAWS) expect(viewScale(30, 30, fit, angle)).toBe(0);
+  });
 });
 
 describe("boxCorners", () => {

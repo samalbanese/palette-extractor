@@ -64,7 +64,7 @@ export function create(canvas: HTMLCanvasElement): Renderer {
         (pitch * 1.35 * (1 - state.toCloud) + 2.5 * state.toCloud) / 2;
       const cos = Math.cos(state.angle),
         sin = Math.sin(state.angle);
-      const scale = viewScale(width, height, fit);
+      const scale = viewScale(width, height, fit, state.angle, state.boxes);
       for (let j = 0; j < Math.min(4000, order.length); j++) {
         const i = order[j],
           g = samples.groups[i],
