@@ -110,6 +110,14 @@ describe("paletteColorNames", () => {
     expect(reversed).toEqual(forward);
   });
 
+  it("settles a tie for a name the same way whatever the order", () => {
+    // Both are exactly one step from pure red.
+    const pair = ["#fe0000", "#ff0001"].map(fromHex);
+    const forward = paletteColorNames(pair);
+    expect(paletteColorNames([...pair].reverse()).reverse()).toEqual(forward);
+    expect(forward).toContain("Red");
+  });
+
   it("handles an empty palette and repeated colors", () => {
     expect(paletteColorNames([])).toEqual([]);
     const gray = { r: 128, g: 128, b: 128 };

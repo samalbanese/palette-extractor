@@ -194,7 +194,13 @@ export function paletteColorNames(palette: RGB[]): string[] {
     ranked.forEach((candidates, index) => {
       if (names[index] !== undefined) return;
       const best = candidates.find((candidate) => !used.has(candidate.name))!;
-      if (best.distance < pickDistance) {
+      // Equal distances go to the lower RGB value, so a tie never depends
+      // on the order the palette is in.
+      if (
+        best.distance < pickDistance ||
+        (best.distance === pickDistance &&
+          rgbKey(palette[index]) < rgbKey(palette[pick]))
+      ) {
         pick = index;
         pickName = best.name;
         pickDistance = best.distance;
@@ -205,6 +211,8 @@ export function paletteColorNames(palette: RGB[]): string[] {
   }
   return names;
 }
+
+const rgbKey = ({ r, g, b }: RGB) => (r << 16) | (g << 8) | b;
 
 function hexToRgb(hex: string): RGB {
   return {
