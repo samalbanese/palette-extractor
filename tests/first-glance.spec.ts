@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { imageSize, ready, svg } from "./helpers";
+import { imageSize, ready, stageDone, svg } from "./helpers";
 
 test("the identity preview and the contrast tab show the same ratio for the same pair", async ({
   page,
@@ -475,6 +475,8 @@ test("desktop lock and copy controls are large and clearly visible", async ({
 }) => {
   await page.goto("/");
   await ready(page);
+  // Swatches stay empty until the intro delivers their colors.
+  await stageDone(page);
   const lock = page.locator(".lock-button").first();
   const box = (await lock.boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(36);
@@ -497,6 +499,7 @@ test.describe("on a touch phone", () => {
   }) => {
     await page.goto("/");
     await ready(page);
+    await stageDone(page);
     const copy = (await page
       .locator(".swatch-info button")
       .first()

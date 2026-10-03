@@ -23,6 +23,7 @@ import { useColorSpaceComparison } from "./hooks/useColorSpaceComparison";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useSharedPalette } from "./hooks/useSharedPalette";
 import type { StageResult } from "./components/Stage";
+import { stageUnavailable } from "./stage/handoff";
 
 const loadStage = () => import("./components/Stage");
 const Stage = lazy(loadStage);
@@ -196,7 +197,13 @@ export default function App() {
       );
       await afterLargestPaint(image);
       if (cancelled) return;
-      await loadStage();
+      try {
+        await loadStage();
+      } catch {
+        // Without the stage the palette shows as it is, never as slots.
+        stageUnavailable();
+        return;
+      }
       await new Promise<void>((resolve) => {
         if ("requestIdleCallback" in window)
           window.requestIdleCallback(() => resolve(), { timeout: 300 });

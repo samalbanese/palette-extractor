@@ -33,6 +33,8 @@ export function launchFlyers(
   colors: RGB[],
   duration: number,
   reduced = false,
+  /** Runs once per swatch as its color arrives, by chip or by pulse. */
+  onLand: (target: HTMLElement) => void = () => {},
 ) {
   const chips: { node: HTMLElement; animation: Animation; land: () => void }[] =
     [];
@@ -47,6 +49,7 @@ export function launchFlyers(
     const target = targets[index];
     if (!target || landed.has(index)) return;
     landed.add(index);
+    onLand(target);
     target.dataset.stageLanding = String(
       Number(target.dataset.stageLanding ?? 0) + 1,
     );
@@ -80,6 +83,7 @@ export function launchFlyers(
         return;
       const node = document.createElement("div");
       node.className = "stage-flyer";
+      node.dataset.swatchIndex = String(index);
       Object.assign(node.style, {
         width: `${rect.width}px`,
         height: `${rect.height}px`,
