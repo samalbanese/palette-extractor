@@ -165,7 +165,7 @@ test("a resize partway through a swatch's fade lets it keep easing", async ({
   await page.goto("/");
   await stageDone(page);
   // From here the clock moves only when stepped, however slow the machine.
-  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
   await page.mouse.move(2, 2);
   await page.clock.runFor(400);
   const calm = await visible(page);

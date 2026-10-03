@@ -500,7 +500,12 @@ test("a new photo waits as slots on the short intro; same-photo changes never do
     "idle",
   );
   // The switch can report done before its re-extraction even starts, so
-  // this waits for the reorder after it to settle.
+  // this waits for the Perceptual cloud, then for the reorder to settle.
+  await expect(host(page)).toHaveAttribute("data-stage-space", "oklab");
+  await expect(page.locator(".swatch-grid")).toHaveAttribute(
+    "data-morph",
+    "idle",
+  );
   await expect
     .poll(async () => (await read()).now.every((s) => s === "filled"))
     .toBe(true);
