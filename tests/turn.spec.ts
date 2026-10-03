@@ -74,6 +74,76 @@ test("a fling glides on, then settles back into the slow turn", async ({
   expect(rate).toBeLessThan(25);
 });
 
+test("a hand holding the cloud keeps it when the palette changes", async ({
+  page,
+}) => {
+  const { x, y, box } = await center(page);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + box.width / 4, y, { steps: 8 });
+  const held = await degrees(page);
+  const swatches = await page.locator(".swatch").count();
+  // The button is clicked from script so the mouse stays down on the cloud.
+  await page
+    .getByRole("button", { name: "Fewer colors", exact: true })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(page.locator(".swatch")).toHaveCount(swatches - 1);
+  await page.waitForTimeout(500);
+  // Neither snapped back nor turning by itself while still held.
+  expect(await degrees(page)).toBe(held);
+  await page.mouse.move(x + box.width / 2, y, { steps: 8 });
+  const turned = moved(held, await degrees(page));
+  expect(turned).toBeGreaterThan(40);
+  expect(turned).toBeLessThan(50);
+  await page.mouse.up();
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true });
+
+  async function touch(page: Page) {
+    const cdp = await page.context().newCDPSession(page);
+    const send = (type: string, x?: number, y?: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: x === undefined ? [] : [{ x, y: y!, id: 1 }],
+      });
+    return send;
+  }
+
+  test("a swipe that is mostly up and down leaves the cloud where it is", async ({
+    page,
+  }) => {
+    const { x, y } = await center(page);
+    const send = await touch(page);
+    await send("touchStart", x, y);
+    const start = await degrees(page);
+    // Drifting 30 px sideways while moving 84 px down is still a scroll.
+    // Turned by that drift, the cloud would move about 8 degrees; if the
+    // browser scrolls instead, the slow turn picks up again from rest.
+    for (let k = 1; k <= 6; k++) await send("touchMove", x + k * 5, y + k * 14);
+    await page.waitForTimeout(50);
+    expect(Math.abs(moved(start, await degrees(page)))).toBeLessThan(3);
+    await send("touchEnd");
+  });
+
+  test("a gesture the browser takes over leaves no fling", async ({ page }) => {
+    const { x, y, box } = await center(page);
+    const send = await touch(page);
+    await send("touchStart", x - box.width / 4, y);
+    for (let k = 1; k <= 4; k++)
+      await send("touchMove", x - box.width / 4 + (k * box.width) / 8, y);
+    await send("touchCancel");
+    // Touch moves reach the page on its next frame, so the reading waits a
+    // moment for the last one.
+    await page.waitForTimeout(50);
+    const cancelled = await degrees(page);
+    await page.waitForTimeout(300);
+    // A fling would cover well over 8 degrees here; the slow turn under 5.
+    expect(moved(cancelled, await degrees(page))).toBeLessThan(5);
+  });
+});
+
 test("arrow keys turn it, and it waits while focused from the keyboard", async ({
   page,
 }) => {
@@ -87,7 +157,13 @@ test("arrow keys turn it, and it waits while focused from the keyboard", async (
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
   expect(await degrees(page)).toBe((after + 350) % 360);
+  await page.keyboard.press("End");
+  expect(await degrees(page)).toBe(359);
   await page.keyboard.press("Home");
+  expect(await degrees(page)).toBe(0);
+  // Browser shortcuts such as Alt+Left are left to the browser.
+  await page.keyboard.press("Alt+ArrowRight");
+  await page.keyboard.press("Control+ArrowRight");
   expect(await degrees(page)).toBe(0);
   // Arrow keys turn the cloud instead of scrolling the page.
   expect(await page.evaluate(() => scrollY)).toBe(0);
