@@ -25,6 +25,8 @@ const visible = (page: Page) =>
 
 /** Lets a change in focus ease in (160 ms) and draw. */
 const eased = (page: Page) => page.waitForTimeout(450);
+/** A slow software renderer can take far longer than the ease to draw. */
+const SETTLE = { timeout: 5000 };
 
 for (const reduced of [false, true])
   test(`a swatch under the pointer lights up its colors in the cloud${reduced ? " with reduced motion" : ""}`, async ({
@@ -43,12 +45,11 @@ for (const reduced of [false, true])
     expect(calm).toBeGreaterThan(500);
     // The sky fades to a ghost while Amber is in focus. WebGL draws several
     // times the 2D painter's points, so more faint ones stack there.
-    expect(await visible(page)).toBeLessThan(calm * 0.25);
+    await expect.poll(() => visible(page), SETTLE).toBeLessThan(calm * 0.25);
     // Off the swatches, the whole cloud comes back.
     await page.mouse.move(2, 2);
     await expect(host(page)).not.toHaveAttribute("data-stage-focus", /.*/);
-    await eased(page);
-    expect(await visible(page)).toBeGreaterThan(calm * 0.8);
+    await expect.poll(() => visible(page), SETTLE).toBeGreaterThan(calm * 0.8);
   });
 
 test("a swatch reached by keyboard lights up its colors too", async ({
@@ -62,13 +63,13 @@ test("a swatch reached by keyboard lights up its colors too", async ({
   await expect(host(page)).toHaveAttribute("data-stage-focus", "1");
   await page.locator(".swatch").nth(2).locator(".swatch-select").focus();
   await expect(host(page)).toHaveAttribute("data-stage-focus", "2");
-  await eased(page);
-  expect(await visible(page)).toBeLessThan(calm * 0.25);
+  await expect.poll(() => visible(page), SETTLE).toBeLessThan(calm * 0.25);
   // A pointer passing over the page does not take the keyboard's focus away.
   await page.mouse.move(2, 2);
   await page.mouse.move(40, 40);
   await eased(page);
   await expect(host(page)).toHaveAttribute("data-stage-focus", "2");
+  // Read once, after the time a lost focus would take to fade back.
   expect(await visible(page)).toBeLessThan(calm * 0.25);
   await page.locator(".swatch").nth(3).locator(".swatch-select").focus();
   await expect(host(page)).toHaveAttribute("data-stage-focus", "3");
@@ -137,8 +138,7 @@ test("reduced motion turned on mid-fade lets the whole cloud come back", async (
   await eased(page);
   await page.mouse.move(2, 2);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await eased(page);
-  expect(await visible(page)).toBeGreaterThan(calm * 0.8);
+  await expect.poll(() => visible(page), SETTLE).toBeGreaterThan(calm * 0.8);
 });
 
 test("with reduced motion, moving straight to another swatch redraws at once", async ({
@@ -151,13 +151,11 @@ test("with reduced motion, moving straight to another swatch redraws at once", a
   await eased(page);
   const calm = await visible(page);
   await page.locator(".swatch").nth(2).hover();
-  await eased(page);
-  expect(await visible(page)).toBeLessThan(calm * 0.25);
+  await expect.poll(() => visible(page), SETTLE).toBeLessThan(calm * 0.25);
   // Blue Gray, the sky: from one lit swatch to another, no calm between.
   await page.locator(".swatch").nth(0).hover();
   await expect(host(page)).toHaveAttribute("data-stage-focus", "0");
-  await eased(page);
-  expect(await visible(page)).toBeGreaterThan(calm * 0.6);
+  await expect.poll(() => visible(page), SETTLE).toBeGreaterThan(calm * 0.6);
 });
 
 test("a resize partway through a swatch's fade lets it keep easing", async ({
@@ -166,6 +164,8 @@ test("a resize partway through a swatch's fade lets it keep easing", async ({
   await page.clock.install({ time: 0 });
   await page.goto("/");
   await stageDone(page);
+  // From here the clock moves only when stepped, however slow the machine.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
   await page.mouse.move(2, 2);
   await page.clock.runFor(400);
   const calm = await visible(page);
