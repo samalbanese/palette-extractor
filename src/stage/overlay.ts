@@ -1,6 +1,7 @@
 import type { SplitStep } from "@samalbanese/median-cut";
 import { boxCorners, project, type ViewFit } from "./math";
 import type { DrawState } from "./data";
+import { CONDENSE } from "./timeline";
 
 export function drawOverlay(
   canvas: HTMLCanvasElement,
@@ -26,8 +27,11 @@ export function drawOverlay(
     steps.length - 1,
     Math.floor(state.split * steps.length),
   );
+  // Gone by the time the groups finish condensing, so nothing is left to
+  // vanish in one frame when the chips leave.
+  const fade = Math.max(0, 1 - state.converge / CONDENSE);
   steps.slice(0, active + 1).forEach((step, index) => {
-    ctx.strokeStyle = `rgba(225,231,234,${(index === active ? 0.42 : 0.15) * (1 - state.converge)})`;
+    ctx.strokeStyle = `rgba(225,231,234,${(index === active ? 0.42 : 0.15) * fade})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     step.forEach(({ bounds }) => {

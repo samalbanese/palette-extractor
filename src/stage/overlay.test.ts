@@ -4,22 +4,25 @@ import type { StageSamples } from "../lib/extraction";
 import { prepare, type DrawState } from "./data";
 import { project, type Vec3 } from "./math";
 import { drawOverlay } from "./overlay";
+import { introState } from "./timeline";
 
 /** A canvas whose 2D context keeps every point a path visits. */
 function recorder() {
   const visits: [number, number][] = [];
+  const alphas: number[] = [];
   const ctx = {
     strokeStyle: "",
     lineWidth: 1,
     setTransform: () => {},
     clearRect: () => {},
     beginPath: () => {},
-    stroke: () => {},
+    stroke: () =>
+      alphas.push(Number(ctx.strokeStyle.slice(0, -1).split(",").pop())),
     moveTo: (x: number, y: number) => visits.push([x, y]),
     lineTo: (x: number, y: number) => visits.push([x, y]),
   };
   const canvas = { width: 0, height: 0, getContext: () => ctx };
-  return { visits, canvas: canvas as unknown as HTMLCanvasElement };
+  return { visits, alphas, canvas: canvas as unknown as HTMLCanvasElement };
 }
 
 const samples: StageSamples = {
@@ -75,4 +78,27 @@ it("draws box corners where the points of those colors are drawn", () => {
       `corner ${corner}`,
     ).toBe(true);
   }
+});
+
+it("fades the boxes out fully before the chips leave, with no last-frame pop", () => {
+  const data = prepare(samples, "rgb");
+  const step: SplitStep = [
+    {
+      bounds: { min: [30, 40, 10], max: [200, 160, 220] },
+      color: { r: 0, g: 0, b: 0 },
+      population: 3,
+    },
+  ];
+  const strongest = (elapsed: number) => {
+    const { alphas, canvas } = recorder();
+    const at = { ...introState(elapsed, 3000), angle: 0.9, points: 3 };
+    drawOverlay(canvas, [step], at, data.fit, 640, 360, 1);
+    return Math.max(0, ...alphas);
+  };
+  expect(strongest(1999)).toBeGreaterThan(0.4);
+  // The last converge frame at 60 fps is already invisible.
+  expect(strongest(2249)).toBeLessThan(0.005);
+  // And it gets there smoothly: no 16 ms step drops more than a tenth.
+  for (let t = 2000; t < 2250; t += 16)
+    expect(strongest(t) - strongest(t + 16)).toBeLessThan(0.1);
 });

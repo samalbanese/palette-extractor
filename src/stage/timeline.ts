@@ -43,7 +43,7 @@ const STARTS: [IntroPhase, number][] = [
 ];
 
 // How far the groups condense before their chips leave.
-const CONDENSE = 0.8;
+export const CONDENSE = 0.8;
 
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
