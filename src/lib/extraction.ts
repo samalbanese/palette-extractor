@@ -5,7 +5,7 @@ import {
   type Pixel,
   type SplitStep,
   type WeightedColor,
-} from "@samalbanese/median-cut";
+} from "@relaywright/median-cut";
 import { colorDistanceSq, type RGB } from "./color";
 
 const TRANSPARENT =

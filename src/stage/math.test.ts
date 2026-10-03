@@ -3,7 +3,7 @@ import {
   oklabCoords,
   type ColorSpace,
   type Pixel,
-} from "@samalbanese/median-cut";
+} from "@relaywright/median-cut";
 import { NO_SWATCH } from "../lib/stageGroups";
 import colors from "./__fixtures__/sample-colors.json";
 import {

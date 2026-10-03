@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { oklabCoords, type SplitStep } from "@samalbanese/median-cut";
+import { oklabCoords, type SplitStep } from "@relaywright/median-cut";
 import { PINNED_BOX, type StageSamples } from "../lib/extraction";
 import { prepare } from "./data";
 import { colorPoint, fitPoint, project, type Vec3 } from "./math";

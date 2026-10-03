@@ -1,11 +1,11 @@
 # Palette Extractor
 
-[![CI](https://github.com/samalbanese/palette-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/samalbanese/palette-extractor/actions/workflows/ci.yml)
+[![CI](https://github.com/relaywright/palette-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/relaywright/palette-extractor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Color, pulled into focus.** A private color studio that takes an image from inspiration to usable design values. Upload a photo, explore its palette, see it applied to an identity, and take the colors straight into your next project.
 
-[Open the live app](https://palette.samalbanese.com/)
+[Open the live app](https://palette-extractor.relaywright.workers.dev/)
 
 ![Palette Extractor color studio with a desert photograph and its extracted colors](.github/studio.webp)
 
@@ -71,7 +71,7 @@ src/
                      contrast, exporters, color names, share encoding
 packages/
   median-cut/        The quantizer, published standalone as
-                     @samalbanese/median-cut, with its own README
+                     @relaywright/median-cut, with its own README
 tests/
   studio.spec.ts     End-to-end browser tests
 ```

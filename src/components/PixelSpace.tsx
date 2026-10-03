@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ColorSpace, SplitStep } from "@samalbanese/median-cut";
+import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import type { StageSamples } from "../lib/extraction";
 import { create as createGL } from "../stage/renderer";
 import { create as create2D } from "../stage/painter2d";

@@ -1,4 +1,4 @@
-import { oklabDistance, srgbToOklab } from "@samalbanese/median-cut";
+import { oklabDistance, srgbToOklab } from "@relaywright/median-cut";
 import { type RGB, rgbToHex } from "./color";
 
 /** How long a swatch takes to slide to a new slot or melt to a new color. */

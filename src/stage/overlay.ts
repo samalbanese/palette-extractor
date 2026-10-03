@@ -1,4 +1,4 @@
-import type { SplitStep } from "@samalbanese/median-cut";
+import type { SplitStep } from "@relaywright/median-cut";
 import { boxCorners, project, type ViewFit } from "./math";
 import type { DrawState } from "./data";
 import { CONDENSE } from "./timeline";

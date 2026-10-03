@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { SplitStep } from "@samalbanese/median-cut";
+import type { SplitStep } from "@relaywright/median-cut";
 import type { StageSamples } from "../lib/extraction";
 import { prepare, type DrawState } from "./data";
 import { project, type Vec3 } from "./math";

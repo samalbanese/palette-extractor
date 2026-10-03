@@ -1,4 +1,4 @@
-import type { ColorSpace, SplitStep } from "@samalbanese/median-cut";
+import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import { PINNED_BOX, type StageSamples } from "../lib/extraction";
 import {
   boxCorners,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import type { ColorSpace, SplitStep } from "@samalbanese/median-cut";
+import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import type { Source } from "../hooks/useImageSource";
 import type { RGB } from "../lib/color";
 import type { StageSamples } from "../lib/extraction";

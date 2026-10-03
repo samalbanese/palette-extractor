@@ -1,5 +1,5 @@
 {
-  "name": "@samalbanese/median-cut",
+  "name": "@relaywright/median-cut",
   "version": "0.2.0",
   "description": "A from-scratch median-cut color quantizer with an optional OKLab perceptual mode",
   "keywords": [
@@ -29,10 +29,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/samalbanese/palette-extractor.git",
+    "url": "git+https://github.com/relaywright/palette-extractor.git",
     "directory": "packages/median-cut"
   },
-  "homepage": "https://palette.samalbanese.com/",
+  "homepage": "https://palette-extractor.relaywright.workers.dev/",
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
