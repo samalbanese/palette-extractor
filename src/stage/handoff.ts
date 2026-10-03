@@ -26,6 +26,9 @@ let limitAt = Infinity;
 // Counts holds, so a chip launched for an earlier photo never fills a later
 // photo's slot, even one in a swatch the grid has reused.
 let hold = 0;
+// Counts new photos' palettes, held or not, so only the very first one is
+// treated as the first load.
+let photos = 0;
 // Any of these reaching the page shows the palette whole. Click and focus
 // cover assistive technology, which can activate or focus a control without
 // a pointer or key event.
@@ -50,8 +53,8 @@ const arm = (ms: number, then: (() => void) | null) => {
   }, ms);
 };
 
-/** Whether a new photo's colors will arrive by flight. */
-export const slotsWanted = () =>
+/** Whether a new photo's colors would arrive by flight. */
+const slotsWanted = () =>
   !unavailable &&
   session.view === "cloud" &&
   !matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -62,16 +65,22 @@ export const slotsHeld = () => held().length > 0;
 export const currentHold = () => hold;
 
 /**
- * Empties the swatches until their colors land; call before they paint. With
- * too little of the first-load deadline left, or a first palette that came
- * after it, they show whole instead.
+ * Call with every new photo's swatches, before they paint. They wait empty
+ * until their colors land, unless the colors will not fly (reduced motion,
+ * the Photo view, no stage), too little of the first-load deadline is left,
+ * or a first palette came after it; then they show whole.
  */
 export function holdSlots(swatches: HTMLElement[]) {
   if (!swatches.length) {
     fillSlots();
     return;
   }
-  const first = hold++ === 0;
+  const first = photos++ === 0;
+  if (!slotsWanted()) {
+    fillSlots();
+    return;
+  }
+  hold++;
   const now = performance.now();
   limitAt =
     first || now < FIRST_LOAD_DEADLINE_MS ? FIRST_LOAD_DEADLINE_MS : Infinity;

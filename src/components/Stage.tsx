@@ -156,8 +156,10 @@ export default function Stage({
         },
       );
     };
+    // Once a newer photo holds the swatches, this stage has nothing left to
+    // show or send, so it stops before its next frame.
     const draw = () => {
-      if (!initialized) return;
+      if (!initialized || !current()) return;
       if (overdue && !done) markDone(true);
       const state = {
         ...introState(done ? length : elapsed, length),
@@ -206,6 +208,7 @@ export default function Stage({
     };
     const active = () =>
       initialized &&
+      current() &&
       visible &&
       !document.hidden &&
       !reduced &&
@@ -253,6 +256,7 @@ export default function Stage({
       }
     };
     const skip = () => {
+      if (!current()) return;
       // Whatever ends the intro early shows the whole palette at once.
       fillSlots();
       if (initialized && !done) {

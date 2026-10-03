@@ -17,7 +17,7 @@ import {
   type ColorTimeline,
 } from "../lib/morph";
 import { paletteColorNames } from "../lib/names";
-import { fillSlots, holdSlots, slotsWanted } from "../stage/handoff";
+import { fillSlots, holdSlots } from "../stage/handoff";
 import { Swatch, type ValueKind } from "./Swatch";
 
 export interface PaletteEntry {
@@ -206,7 +206,7 @@ export function SwatchGrid({
     const elements = swatchElements();
     // A new photo's colors arrive with the stage's flyers, so its swatches
     // start empty; any other change shows them whole.
-    if (presentation.finalColors && slotsWanted())
+    if (presentation.finalColors)
       holdSlots(elements.map(({ element }) => element));
     else fillSlots();
     const paint = (time: number) => {

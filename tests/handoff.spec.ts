@@ -283,6 +283,22 @@ test("a first palette that arrives after the deadline shows at once", async ({
   expect(seen.firstPaint).toEqual(Array(6).fill("filled"));
 });
 
+test("a first palette shown without slots leaves the next photo its own intro", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const read = await watchSwatches(page);
+  await page.goto("/");
+  await stageDone(page);
+  // Well past the first-load deadline, motion comes back.
+  await page.waitForFunction(() => performance.now() > 3800);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  expect((await read()).slotSeen).toBe(false);
+  await page.getByRole("button", { name: "Try Forest floor" }).click();
+  await expect.poll(async () => (await read()).slotSeen).toBe(true);
+  await allFilled(read);
+});
+
 for (const action of ["click", "focus"] as const)
   test(`a ${action} with no pointer or key fills every slot`, async ({
     page,
@@ -318,6 +334,34 @@ test("a landing left over from an earlier photo never fills a later photo's slot
     return stillWaiting;
   });
   expect(kept).toBe(true);
+});
+
+test("a stage whose photo was replaced stops drawing and sends no chips", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const stage = host(page);
+  await expect(stage).toHaveAttribute("data-stage-started-at", /\d+/);
+  await expect(stage).toHaveAttribute("data-stage-step", /^(?!flight|release)/);
+  const sent = await page.evaluate(async () => {
+    const url = "/src/stage/handoff.ts";
+    const handoff = (await import(
+      /* @vite-ignore */ url
+    )) as typeof import("../src/stage/handoff");
+    let flyers = 0;
+    new MutationObserver((records) => {
+      for (const record of records)
+        for (const node of record.addedNodes)
+          if (node instanceof Element && node.matches(".stage-flyer")) flyers++;
+    }).observe(document.body, { childList: true, subtree: true });
+    // What a replacement photo's grid does before its own stage starts.
+    handoff.holdSlots([document.createElement("div")]);
+    await new Promise((done) => setTimeout(done, 3000));
+    return flyers;
+  });
+  expect(sent).toBe(0);
+  await expect(stage).toHaveAttribute("data-stage-loop", "idle");
+  await expect(stage).not.toHaveAttribute("data-stage-phase", "done");
 });
 
 test("a photo that cannot be decoded for the stage fills every swatch at once", async ({
