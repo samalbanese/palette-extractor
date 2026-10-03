@@ -36,7 +36,11 @@ const ACCENT_DISTANCE = 0.1;
 function pickAccent(palette: RGB[], background: RGB, foreground: RGB) {
   const bySaturation = (list: RGB[]) =>
     [...list].sort((a, b) => rgbToHsl(b).s - rgbToHsl(a).s);
-  const others = palette.filter((c) => c !== background && c !== foreground);
+  // Compare by value: a palette can repeat a color as separate objects.
+  const same = (a: RGB, b: RGB) => a.r === b.r && a.g === b.g && a.b === b.b;
+  const others = palette.filter(
+    (c) => !same(c, background) && !same(c, foreground),
+  );
   // With only the two surface colors to choose from, the accent shares one.
   if (!others.length) return bySaturation(palette)[0];
   const apart = (c: RGB) =>

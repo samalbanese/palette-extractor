@@ -45,6 +45,12 @@ describe("palette role suggestions", () => {
       red = { r: 220, g: 40, b: 40 };
     expect(suggestRoles([dark, red])!.accent).toEqual(red);
   });
+  it("treats a repeated surface color as the surface", () => {
+    // Share links can repeat a color, decoded as separate objects.
+    const white = { r: 255, g: 255, b: 255 },
+      red = { r: 150, g: 0, b: 0 };
+    expect(suggestRoles([white, red, { ...white }])!.accent).toEqual(red);
+  });
   it("does not fabricate contrast for monochrome palettes", () => {
     const gray = { r: 120, g: 120, b: 120 };
     expect(suggestRoles([gray])?.ratio).toBe(1);
