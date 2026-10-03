@@ -27,6 +27,17 @@ export function flightPath(from: Origin, to: Destination): Keyframe[] {
   });
 }
 
+// The first chip lands at this share of the flight; the rest follow in
+// swatch order, so the palette fills left to right instead of all at once.
+const FIRST_LANDING = 0.72;
+
+/** How long the chip for swatch `index` of `count` spends in the air. */
+export function flightTime(index: number, count: number, duration: number) {
+  const share =
+    count > 1 ? FIRST_LANDING + ((1 - FIRST_LANDING) * index) / (count - 1) : 1;
+  return Math.max(1, duration * share);
+}
+
 export function launchFlyers(
   overlay: HTMLElement,
   origins: (Origin | null)[],
@@ -91,7 +102,7 @@ export function launchFlyers(
       });
       overlay.append(node);
       const animation = node.animate(flightPath(origin, rect), {
-        duration,
+        duration: flightTime(index, colors.length, duration),
         easing: "cubic-bezier(.2,.65,.25,1)",
         fill: "both",
       });

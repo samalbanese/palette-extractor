@@ -150,6 +150,10 @@ for (const viewport of [
     expect(seen.at1500).toEqual(Array(6).fill("slot"));
     const landed = Object.entries(seen.landedAt);
     expect(landed.length).toBeGreaterThan(0);
+    // Chips land one after another, not in a single frame.
+    const times = landed.map(([, at]) => at);
+    if (landed.length > 1)
+      expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(50);
     for (const [index, at] of landed) {
       const filled = seen.filledAt[Number(index)];
       // Filled with its chip, never before it arrives.
