@@ -78,7 +78,8 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
   // Fitted on every sample, locked ones too, so locking a color never moves
   // or rescales the view.
   const fit = useMemo(
-    () => (samples ? fitView(sampleCube(samples, colorSpace)) : null),
+    () =>
+      samples ? fitView(sampleCube(samples, colorSpace), samples.extent) : null,
     [samples, colorSpace],
   );
   const available = filtered?.groups.length ?? 0;

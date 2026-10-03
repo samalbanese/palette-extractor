@@ -351,6 +351,30 @@ describe("fitView", () => {
     expect(viewScale(400, 300, flat)).toBeCloseTo((150 - 22) / 12, 9);
   });
 
+  it("keeps split boxes in the frame when they cover pixels the samples missed", () => {
+    // A flat gray image whose one red pixel was not sampled: the points sit
+    // in one spot, but the quantizer's boxes still stretch out to the red.
+    const gray = colorPoint([128, 128, 128], "rgb");
+    const cube = new Float32Array([...gray, ...gray]);
+    const extent = {
+      min: [128, 0, 0] as [number, number, number],
+      max: [255, 128, 128] as [number, number, number],
+    };
+    const fit = fitView(cube, extent);
+    // The points' own reach is unchanged; only the boxes' grows.
+    expect(fit.reachX).toBe(12);
+    expect(fit.reachY).toBe(12);
+    for (let k = 0; k < 24; k++) {
+      const angle = (k / 24) * 2 * Math.PI;
+      for (const corner of boxCorners(extent, fit)) {
+        const [x, y] = project(corner, angle, 400, 300, fit);
+        expect(Math.min(x, 400 - x, y, 300 - y)).toBeGreaterThanOrEqual(
+          2 - 1e-6,
+        );
+      }
+    }
+  });
+
   it("never gives a negative scale for a frame smaller than its margins", () => {
     expect(viewScale(30, 30, CUBE_FIT)).toBe(0);
   });

@@ -44,7 +44,7 @@ export function prepare(
   fit?: ViewFit,
 ) {
   const cube = sampleCube(samples, space);
-  const view = fit ?? fitView(cube);
+  const view = fit ?? fitView(cube, samples.extent);
   for (let i = 0; i < cube.length; i += 3)
     cube.set(fitPoint([cube[i], cube[i + 1], cube[i + 2]], view), i);
   return {

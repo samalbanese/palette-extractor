@@ -93,12 +93,20 @@ function reach(dx: number, dy: number, dz: number): [number, number] {
   return [h, Math.abs(dy) * TILT_COS + h * TILT_SIN];
 }
 
+/** A box in 0-255 coordinates, like the quantizer's split boxes. */
+export interface Extent {
+  min: Pixel;
+  max: Pixel;
+}
+
 /**
  * The fit of a cloud: its mean, and how far its points and its bounding box
  * can reach on screen at any yaw. The farthest point, rather than a
- * percentile, sets the reach, so no point ever leaves the frame.
+ * percentile, sets the reach, so no point ever leaves the frame. `extent`
+ * widens the bounding box to colors the samples skipped, which the split
+ * boxes still reach.
  */
-export function fitView(cube: Float32Array): ViewFit {
+export function fitView(cube: Float32Array, extent?: Extent): ViewFit {
   const n = cube.length / 3;
   const center: Vec3 = [0, 0, 0];
   const min = [Infinity, Infinity, Infinity];
@@ -109,6 +117,11 @@ export function fitView(cube: Float32Array): ViewFit {
       center[k] += v / n;
       min[k] = Math.min(min[k], v);
       max[k] = Math.max(max[k], v);
+    }
+  if (n && extent)
+    for (let k = 0; k < 3; k++) {
+      min[k] = Math.min(min[k], extent.min[k] - 127.5);
+      max[k] = Math.max(max[k], extent.max[k] - 127.5);
     }
   let reachX = MIN_REACH,
     reachY = MIN_REACH;
