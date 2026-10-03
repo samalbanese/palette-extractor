@@ -413,6 +413,7 @@ code {
   font-size: 14px;
   color: #a1a3a4;
   margin: 0;
+  text-wrap: pretty;
 }
 .button {
   border: 1px solid transparent;
@@ -459,10 +460,6 @@ code {
 .upload-main {
   height: 45px;
   padding: 12px 17px;
-}
-.shortcut {
-  margin-left: 19px;
-  font-size: 18px;
 }
 .text-button {
   display: flex;
@@ -600,17 +597,41 @@ code {
 .stage-host[data-stage-step="lift"] .stage-surface {
   background: transparent;
 }
-.stage-inset {
+/* Shown at rest until the cloud is first turned on this page. */
+.stage-hint {
   position: absolute;
-  left: 14px;
-  bottom: 48px;
-  width: 25%;
-  height: 24%;
-  object-fit: cover;
-  border: 1px solid #ffffff40;
-  border-radius: 8px;
-  opacity: 0;
+  inset: 14px auto auto 14px;
+  border-radius: 30px;
+  padding: 7px 12px;
+  background: #16191b;
+  color: #d9dad6;
+  font-size: 11px;
   pointer-events: none;
+  animation: stage-hint-in 0.5s 0.4s ease-out both;
+}
+@keyframes stage-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+/* Drag sideways to turn the cloud; vertical swipes still scroll the page. */
+.stage-turn {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: pan-y;
+  border-radius: 8px;
+}
+.stage-turn[data-held] {
+  cursor: grabbing;
+}
+.stage-turn:focus-visible {
+  outline-offset: -4px;
+}
+.stage-host:not([data-stage-step]) .stage-turn {
+  display: none;
 }
 .stage-switch {
   position: absolute;
@@ -674,8 +695,13 @@ code {
   text-align: right;
   color: #e3e1dc;
 }
+/* The credit sits over the stage, which turns the cloud wherever it is
+   dragged, so the link keeps a full-size target without moving the text. */
 .image-caption a {
   pointer-events: auto;
+  display: inline-block;
+  padding: 6px 0;
+  margin: -6px 0;
 }
 .image-caption a:hover {
   text-decoration: underline;
@@ -706,9 +732,6 @@ code {
 .sample-row button.active {
   border-color: #c5b7a5;
 }
-.sample-row button:hover {
-  border-color: #818587;
-}
 .sample-row img {
   width: 59px;
   height: 38px;
@@ -730,7 +753,17 @@ code {
   border-radius: 3px;
   z-index: 2;
 }
-.sample-row button:hover span,
+/* A tap counts as hover on many touch screens and the state sticks after
+   it, so the name tip shows on hover only where a pointer can hover, and on
+   keyboard focus. */
+@media (hover: hover) {
+  .sample-row button:hover {
+    border-color: #818587;
+  }
+  .sample-row button:hover span {
+    opacity: 1;
+  }
+}
 .sample-row button:focus-visible span {
   opacity: 1;
 }
@@ -813,6 +846,28 @@ code {
   outline: 2px solid #e2b869;
   outline-offset: 3px;
   animation: swatch-highlight 1.5s ease-out;
+}
+/* A swatch waiting for its color: same box, a faint outline, nothing
+   printed. Opacity (not visibility) keeps every control reachable. */
+.swatch[data-slot] .swatch-color {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #ffffff29;
+  outline-color: transparent;
+}
+.swatch[data-slot] :is(.swatch-select > span, .lock-button, .swatch-info > *) {
+  opacity: 0;
+}
+/* The share bar and the inspector would give the colors away before they
+   land, so they wait with the slots and rise into place once every swatch is
+   full. They show at full strength at once: a fade would leave their text
+   briefly too faint to read. */
+:is(.distribution, .inspector) {
+  transition: transform 240ms ease-out;
+}
+body:has(.swatch[data-slot]) :is(.distribution, .inspector) {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: none;
 }
 @keyframes swatch-highlight {
   0% {
@@ -1228,8 +1283,8 @@ select {
   left: -20px;
   display: grid;
   place-content: center;
-  width: 86px;
-  height: 86px;
+  width: 94px;
+  height: 94px;
   font-family: Georgia, serif;
   font-style: italic;
   font-size: 17px;
@@ -1498,21 +1553,36 @@ select {
   width: 100%;
   text-align: left;
 }
+/* "Aa" and the ratio share the top line; the verdict gets the full width
+   below, so neither can run into the sample however narrow the tile. */
 .contrast-sample {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: 1fr auto;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 4px;
   padding: 20px;
-  height: 100px;
+  min-height: 100px;
   border-radius: 6px;
 }
 .contrast-sample > span:first-child {
   font:
     36px Georgia,
     serif;
+  line-height: 1;
 }
 .contrast-sample > span:last-child {
+  display: contents;
   font: 10px var(--font-mono);
+}
+.contrast-ratio {
+  text-align: right;
+}
+.contrast-verdict {
+  grid-column: 1 / -1;
+  line-height: 1.3;
 }
 .contrast-meta {
   display: flex;
@@ -1709,9 +1779,6 @@ select {
   .intro p {
     font-size: 12px;
   }
-  .shortcut {
-    display: none;
-  }
   .workspace {
     gap: 22px;
     grid-template-columns: 1fr 1fr;
@@ -1844,8 +1911,8 @@ select {
     display: inline;
   }
   .brand-sticker {
-    width: 100px;
-    height: 100px;
+    width: 108px;
+    height: 108px;
     font-size: 20px;
   }
   .workbench-nav {
@@ -1950,13 +2017,6 @@ select {
   .upload-main {
     width: 100%;
     height: 43px;
-  }
-  .shortcut {
-    display: inline;
-    margin-left: auto;
-  }
-  .upload-main > svg {
-    margin-right: auto;
   }
   .workspace {
     grid-template-columns: 1fr;
@@ -2169,8 +2229,8 @@ select {
     min-height: 185px;
   }
   .brand-sticker {
-    width: 65px;
-    height: 65px;
+    width: 78px;
+    height: 78px;
     font-size: 14px;
     bottom: 12px;
     left: -11px;
@@ -2213,7 +2273,7 @@ select {
   }
   .contrast-sample {
     padding: 13px;
-    height: 92px;
+    min-height: 92px;
   }
   .contrast-sample > span:first-child {
     font-size: 31px;
@@ -2249,9 +2309,14 @@ select {
   .step-list {
     grid-template-columns: 1fr;
   }
+  /* Both labels fit one line with a clear gap at common phone widths; on
+     the narrowest screens the second drops below the first. */
   .cube-topline {
     font-size: 8px;
     inset: 14px 13px auto;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    letter-spacing: 0;
   }
   .cube-bottomline {
     font-size: 9px;
@@ -2500,6 +2565,7 @@ select {
   .url-form p,
   .shared-source > p,
   .processing-badge,
+  .stage-hint,
   .error-banner,
   .code-window pre,
   select {
@@ -2531,5 +2597,49 @@ select {
   .swatch-grid.format-rgb,
   .swatch-grid.format-hsl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* A palette never ends on a lone swatch. Where three fit across, a count
+   one past a full row (4, 7, 10) splits the last four swatches into two
+   rows of two on a six-track grid. Where two fit across, an odd count gives
+   the first swatch the whole top row. Swatches only ever widen, so values
+   that fit before still fit, and the number of rows does not change. */
+@media (max-width: 580px), (min-width: 851px) {
+  .swatch-grid.format-hex:has(> .swatch:nth-child(3n + 4):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .swatch-grid.format-hex:has(> .swatch:nth-child(3n + 4):last-child)
+    > .swatch {
+    grid-column: span 2;
+  }
+  .swatch-grid.format-hex:has(> .swatch:nth-child(3n + 4):last-child)
+    > .swatch:nth-last-child(-n + 4) {
+    grid-column: span 3;
+  }
+}
+@media (min-width: 1280px) {
+  .swatch-grid:has(> .swatch:nth-child(3n + 4):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .swatch-grid:has(> .swatch:nth-child(3n + 4):last-child) > .swatch {
+    grid-column: span 2;
+  }
+  .swatch-grid:has(> .swatch:nth-child(3n + 4):last-child)
+    > .swatch:nth-last-child(-n + 4) {
+    grid-column: span 3;
+  }
+}
+@media (min-width: 581px) and (max-width: 850px) {
+  .swatch-grid:has(> .swatch:nth-child(2n + 3):last-child)
+    > .swatch:first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 580px), (min-width: 851px) and (max-width: 1279px) {
+  .swatch-grid.format-rgb:has(> .swatch:nth-child(2n + 3):last-child)
+    > .swatch:first-child,
+  .swatch-grid.format-hsl:has(> .swatch:nth-child(2n + 3):last-child)
+    > .swatch:first-child {
+    grid-column: 1 / -1;
   }
 }

@@ -95,6 +95,14 @@ jobs:
         if: matrix.profile == 'mobile'
         run: npm run check:bundle
 
+      # The first Lighthouse run on a fresh runner is consistently the slowest
+      # (cold disk and browser caches), so one throwaway run warms the machine
+      # before the three runs whose median is asserted.
+      - name: Lighthouse warm-up (${{ matrix.profile }})
+        run: |
+          npx lhci collect --config=${{ matrix.profile == 'desktop' && 'lighthouserc.desktop.json' || 'lighthouserc.json' }} --numberOfRuns=1
+          rm -rf .lighthouseci
+
       - name: Lighthouse (${{ matrix.profile }})
         run: npx lhci autorun --config=${{ matrix.profile == 'desktop' && 'lighthouserc.desktop.json' || 'lighthouserc.json' }}
 

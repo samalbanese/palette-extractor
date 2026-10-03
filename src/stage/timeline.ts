@@ -16,11 +16,14 @@ export interface IntroState {
   toCloud: number;
   /** Progress through the recorded splits. */
   split: number;
-  /** Pull toward each group's centroid and color. */
+  /**
+   * How far each point takes on its group's color. Points stay where they
+   * are, so the cloud keeps its shape while the palette shows through it.
+   */
   converge: number;
-  /** Flyers leaving the cloud for their swatches. */
+  /** Flyers leaving the cloud for their swatches. It starts slowly. */
   flight: number;
-  /** Points spreading back out to their own colors. */
+  /** Points returning to their own colors. */
   release: number;
   done: boolean;
 }
@@ -31,12 +34,23 @@ const STARTS: [IntroPhase, number][] = [
   ["settle", 800],
   ["split", 1400],
   ["converge", 2000],
-  ["flight", 2300],
+  ["flight", 2250],
   ["release", 2700],
 ];
 
+// How far the points take their group's color before the chips leave.
+export const CONDENSE = 0.9;
+
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+
+/**
+ * The room a stage keeps for its split boxes: all of it until the chips
+ * leave, then none by the end, so the cloud grows into the space the boxes
+ * needed as they fade.
+ */
+export const boxRoom = ({ flight, release }: IntroState) =>
+  1 - (flight + release) / 2;
 
 /** As long as the remaining time allows, between the short and full intro. */
 export function introLength(remainingMs: number): number {
@@ -69,8 +83,8 @@ export function introState(elapsedMs: number, lengthMs: number): IntroState {
         ? 0.6 * easeInOutCubic(span(0, 800))
         : 0.6 + 0.4 * easeInOutCubic(span(800, 1400)),
     split: span(1400, 2000),
-    converge: easeInOutCubic(span(2000, 2300)),
-    flight: span(2300, 2700),
+    converge: CONDENSE * easeInOutCubic(span(2000, 2250)),
+    flight: span(2250, 2700) ** 3,
     release: easeInOutCubic(span(2700, 3000)),
     done: false,
   };

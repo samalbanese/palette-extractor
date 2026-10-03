@@ -555,6 +555,16 @@ async function freezeAt(page: Page, phase: string) {
     ),
   );
   await expect(host(page)).toHaveAttribute("data-stage-step", phase);
+  // Timers already pending stop too, so nothing changes the page mid-scan,
+  // such as the deadline that fills the palette once frames stop coming.
+  // Timers started later, like the scan's own, run as usual.
+  await page.evaluate(() => {
+    const newest = window.setTimeout(() => {}, 0);
+    for (let id = newest; id > newest - 10000 && id > 0; id--) {
+      window.clearTimeout(id);
+      window.clearInterval(id);
+    }
+  });
 }
 const still = (page: Page) =>
   page.evaluate(() => ({

@@ -4,15 +4,31 @@ import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import type { Source } from "../hooks/useImageSource";
 import type { RGB } from "../lib/color";
 import type { StageSamples } from "../lib/extraction";
-import { swatchForGroup } from "../lib/stageGroups";
+import { NO_SWATCH, swatchForGroup } from "../lib/stageGroups";
 import { create as createGL } from "../stage/renderer";
 import { create as create2D } from "../stage/painter2d";
 import { drawOverlay } from "../stage/overlay";
 import { flyerOrigins, project } from "../stage/math";
-import { introLength, introState, SHORT_INTRO_MS } from "../stage/timeline";
+import {
+  boxRoom,
+  introLength,
+  introState,
+  SHORT_INTRO_MS,
+} from "../stage/timeline";
 import { createQualityMonitor } from "../stage/quality";
+import { AUTO_SPIN, coast, dragTurn, flingSpin } from "../stage/turn";
 import { launchFlyers } from "../stage/flyers";
 import { yieldTask, type CloudData, type Renderer } from "../stage/data";
+import {
+  claimSlots,
+  currentHold,
+  dropClaim,
+  fillSlot,
+  fillSlots,
+  session,
+  slotsHeld,
+  stageUnavailable,
+} from "../stage/handoff";
 
 export interface StageResult {
   image: Source;
@@ -22,7 +38,31 @@ export interface StageResult {
   swatches: RGB[];
   populations: number[];
 }
-let sessionView: "photo" | "cloud" = "cloud";
+/** A hand turning the cloud: where it is now, and how far it has turned. */
+interface Hand {
+  id: number;
+  x: number;
+  y: number;
+  turned: number;
+  // Measured when the hand takes hold, so a drag that carries on while the
+  // stage restarts for new colors keeps its scale.
+  width: number;
+  // Touch turns the cloud only once the finger has clearly moved sideways,
+  // so a swipe meant to scroll the page leaves it alone.
+  sideways: boolean;
+}
+/** How long a swatch's groups take to stand out in the cloud, or fade back. */
+const FOCUS_MS = 160;
+/** Below this many pixels a finger has not yet shown which way it moves. */
+const INTENT_PX = 6;
+const STEPS: Record<string, number> = {
+  ArrowRight: 10,
+  ArrowUp: 10,
+  ArrowLeft: -10,
+  ArrowDown: -10,
+  PageUp: 45,
+  PageDown: -45,
+};
 
 export default function Stage({
   result,
@@ -36,18 +76,32 @@ export default function Stage({
   const surface = useRef<HTMLDivElement>(null);
   const wire = useRef<HTMLCanvasElement>(null);
   const portal = useRef<HTMLDivElement>(null);
-  const inset = useRef<HTMLImageElement>(null);
+  const hint = useRef<HTMLSpanElement>(null);
+  const turner = useRef<HTMLDivElement>(null);
+  // How far the cloud has turned from where it rests, and how fast it is
+  // turning. It turns slowly by itself, stops while a hand holds it or the
+  // keyboard is turning it, and eases back into the slow turn after. This
+  // outlives each run of the effect below, so new colors for the photo never
+  // snap the cloud back or drop a hand still holding it.
+  const turning = useRef({
+    yaw: 0,
+    spin: AUTO_SPIN,
+    keyed: false,
+    hand: null as Hand | null,
+    moves: [] as [number, number][],
+  });
   const previous = useRef<Source | null>(null);
   const generation = useRef(0);
   const controls = useRef({ refresh: () => {}, skip: () => {} });
-  const [view, setView] = useState(sessionView);
+  const [view, setView] = useState(session.view);
   const viewRef = useRef(view);
   viewRef.current = view;
 
   useEffect(() => {
     const parent = host.current!,
       container = surface.current!,
-      photo = hero.current!;
+      photo = hero.current!,
+      layer = turner.current!;
     const token = ++generation.current;
     let disposed = false,
       renderer: Renderer | null = null,
@@ -61,7 +115,6 @@ export default function Stage({
       height = 1,
       dpr = 1,
       elapsed = 0,
-      rotation = 0,
       last = 0,
       lastDraw = 0,
       lastHook = 0,
@@ -71,10 +124,35 @@ export default function Stage({
       done = false,
       launched = false;
     let started = false;
+    const turn = turning.current;
+    // Set once the palette's deadline passes; the next frame ends the intro,
+    // so a paused or slow intro never sends chips to swatches already shown.
+    let overdue = false;
+    const deadline = () => {
+      overdue = true;
+    };
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = media.matches;
     const quality = createQualityMonitor();
-    const current = () => !disposed && generation.current === token;
+    // Which swatch the pointer and the keyboard are each on, the one shown
+    // (the pointer's first), and how far its groups stand out in the cloud
+    // (eased, 0 to 1). The groups lit stay lit while the focus fades, so
+    // leaving a swatch eases out instead of snapping.
+    const groupSwatch = swatchForGroup(
+      result.samples.groupColors,
+      result.swatches,
+    );
+    const lit = new Float32Array(32);
+    let hovered = -1,
+      keyed = -1,
+      focused = -1,
+      focus = 0;
+    // The palette this stage delivers colors to. React holds a new photo's
+    // slots before this effect starts, so once another palette is held, an
+    // older stage has nothing left to fill or claim.
+    const hold = currentHold();
+    const current = () =>
+      !disposed && generation.current === token && currentHold() === hold;
     const mode = (value: string) => {
       parent.dataset.stageMode = value;
     };
@@ -104,6 +182,8 @@ export default function Stage({
       parent.dataset.stagePhase = "done";
       void (flights?.settled() ?? Promise.resolve()).then(() => {
         if (!current()) return;
+        // The swatches now hold this palette's colors.
+        recall();
         raf(() => {
           if (current())
             parent.dataset.stageDoneAt = String(Math.round(performance.now()));
@@ -113,7 +193,7 @@ export default function Stage({
     // Sends each color from the centre of its group to its swatch. Once the
     // intro is over, or with reduced motion, nothing flies and swatches only
     // pulse.
-    const launch = (angle: number) => {
+    const launch = (angle: number, boxes = 1) => {
       launched = true;
       const origins = flyerOrigins(
         data.centroids,
@@ -126,21 +206,34 @@ export default function Stage({
         portal.current!,
         origins.map((p) => {
           if (!p || done || reduced) return null;
-          const [x, y] = project(p, angle, width, height);
+          const [x, y] = project(p, angle, width, height, data.fit, boxes);
           return { x: rect.left + x, y: rect.top + y };
         }),
         result.swatches,
         Math.max(1, length * 0.9 - elapsed),
         reduced,
+        (target) => {
+          if (current()) fillSlot(target.closest<HTMLElement>(".swatch"), hold);
+        },
       );
     };
+    // Once a newer photo holds the swatches, this stage has nothing left to
+    // show or send, so it stops before its next frame.
     const draw = () => {
-      if (!initialized) return;
+      if (!initialized || !current()) return;
+      if (overdue && !done) markDone(true);
+      const intro = introState(done ? length : elapsed, length);
       const state = {
-        ...introState(done ? length : elapsed, length),
-        angle: -Math.PI / 4 + (reduced ? 0 : (rotation * Math.PI * 2) / 24000),
+        ...intro,
+        angle: -Math.PI / 4 + turn.yaw,
         points: fallback ? 4000 : quality.points,
+        boxes: boxRoom(intro),
+        // The palette shows through the cloud during the intro; a swatch
+        // can only stand out once it is over.
+        focus: done ? focus : 0,
+        lit,
       };
+      parent.dataset.stageAngle = String(degrees());
       if (state.done) markDone(false);
       if (!started && !done) {
         started = true;
@@ -156,9 +249,18 @@ export default function Stage({
       photo.style.opacity = cloud
         ? String(1 - Math.min(1, elapsed / (length * 0.1)))
         : "1";
-      inset.current!.style.opacity = cloud ? String(state.release) : "0";
+      const hinted = cloud && done && !session.turned;
+      if (hint.current!.hidden === hinted) hint.current!.hidden = !hinted;
       if (cloud) renderer!.draw(state);
-      drawOverlay(wire.current!, result.steps, state, width, height, dpr);
+      drawOverlay(
+        wire.current!,
+        result.steps,
+        state,
+        data.fit,
+        width,
+        height,
+        dpr,
+      );
       parent.dataset.stageSpace = result.colorSpace;
       frames++;
       if (performance.now() - lastHook >= 250 || frames === 1) {
@@ -169,12 +271,13 @@ export default function Stage({
         !launched &&
         (state.phase === "flight" || state.phase === "release" || state.done)
       )
-        launch(state.angle);
+        launch(state.angle, state.boxes);
       if (state.release > 0) flights?.pulseRemaining();
       if (done) flights?.landAll();
     };
     const active = () =>
       initialized &&
+      current() &&
       visible &&
       !document.hidden &&
       !reduced &&
@@ -188,7 +291,17 @@ export default function Stage({
       const delta = last ? now - last : 0;
       last = now;
       elapsed += delta;
-      rotation += delta;
+      if (!turn.hand && !turn.keyed) {
+        const next = coast(turn.spin, delta);
+        turn.spin = next.spin;
+        turnBy(next.turned);
+      }
+      const goal = focused >= 0 ? 1 : 0;
+      if (focus !== goal)
+        focus =
+          goal > focus
+            ? Math.min(goal, focus + delta / FOCUS_MS)
+            : Math.max(goal, focus - delta / FOCUS_MS);
       if (!fallback) quality.record(delta);
       if (
         !fallback ||
@@ -201,10 +314,162 @@ export default function Stage({
       frame = raf(tick);
       parent.dataset.stageLoop = "running";
     };
+    // Whole degrees from rest, as the slider reports them.
+    const degrees = () => Math.round((turn.yaw * 180) / Math.PI) % 360;
+    const turnBy = (radians: number) => {
+      const full = 2 * Math.PI;
+      turn.yaw = (((turn.yaw + radians) % full) + full) % full;
+      const value = String(degrees());
+      if (layer.getAttribute("aria-valuenow") === value) return;
+      layer.setAttribute("aria-valuenow", value);
+      layer.setAttribute("aria-valuetext", `${value} degrees`);
+    };
+    // With reduced motion, or anything else stopping the loop, a turn by
+    // hand still shows at once.
+    const turned = () => {
+      session.turned = true;
+      if (!frame) draw();
+    };
+    const grab = (event: PointerEvent) => {
+      if (!event.isPrimary || event.button !== 0 || !initialized || !current())
+        return;
+      // Focus is for the keyboard; a hand turns the cloud without it.
+      event.preventDefault();
+      layer.setPointerCapture(event.pointerId);
+      turn.hand = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        turned: 0,
+        width: layer.clientWidth,
+        sideways: event.pointerType === "mouse",
+      };
+      turn.keyed = false;
+      turn.spin = 0;
+      turn.moves.length = 0;
+      turn.moves.push([event.timeStamp, 0]);
+      layer.dataset.held = "";
+    };
+    const drag = (event: PointerEvent) => {
+      const hand = turn.hand;
+      if (event.pointerId !== hand?.id || !current()) return;
+      if (!hand.sideways) {
+        const dx = Math.abs(event.clientX - hand.x),
+          dy = Math.abs(event.clientY - hand.y);
+        if (dx < INTENT_PX || dx <= dy) return;
+        hand.sideways = true;
+      }
+      const by = dragTurn(event.clientX - hand.x, hand.width);
+      hand.x = event.clientX;
+      hand.turned += by;
+      turn.moves.push([event.timeStamp, hand.turned]);
+      if (turn.moves.length > 32) turn.moves.shift();
+      if (!by) return;
+      turnBy(by);
+      turned();
+    };
+    const letGo = (event: PointerEvent) => {
+      if (event.pointerId !== turn.hand?.id) return;
+      turn.hand = null;
+      delete layer.dataset.held;
+      turn.spin = reduced ? 0 : flingSpin(turn.moves, event.timeStamp);
+    };
+    // The browser took the gesture, usually to scroll the page: nothing the
+    // hand did becomes a fling.
+    const cancel = (event: PointerEvent) => {
+      if (event.pointerId !== turn.hand?.id) return;
+      turn.hand = null;
+      turn.moves.length = 0;
+      delete layer.dataset.held;
+      turn.spin = 0;
+    };
+    const press = (event: KeyboardEvent) => {
+      // Shortcuts such as Alt+Left belong to the browser.
+      if (event.altKey || event.ctrlKey || event.metaKey || !current()) return;
+      if (event.key === "Home") turnBy(-turn.yaw);
+      else if (event.key === "End") turnBy((359 * Math.PI) / 180 - turn.yaw);
+      else if (event.key in STEPS) turnBy((STEPS[event.key] * Math.PI) / 180);
+      else return;
+      event.preventDefault();
+      turn.keyed = true;
+      turn.spin = 0;
+      turned();
+    };
+    const leave = () => {
+      turn.keyed = false;
+    };
+    // A swatch under the pointer or holding focus lights up its groups.
+    const swatchAt = (target: EventTarget | null) => {
+      const color = (target as Element | null)
+        ?.closest?.(".swatch")
+        ?.querySelector<HTMLElement>(".swatch-color");
+      const index = Number(color?.dataset.swatchIndex ?? -1);
+      return index >= 0 && index < result.swatches.length ? index : -1;
+    };
+    // Focus counts when it came from the keyboard; a click that leaves a
+    // swatch focused should not keep it lit after the pointer moves on.
+    const keyedAt = (target: EventTarget | null) =>
+      target instanceof Element && target.matches(":focus-visible")
+        ? swatchAt(target)
+        : -1;
+    const show = () => {
+      if (!current()) return;
+      const index = hovered >= 0 ? hovered : keyed;
+      const changed = index !== focused;
+      if (changed) {
+        focused = index;
+        if (index >= 0) {
+          groupSwatch.forEach((swatch, group) => {
+            if (group < lit.length)
+              lit[group] = swatch !== NO_SWATCH && swatch === index ? 1 : 0;
+          });
+          parent.dataset.stageFocus = String(index);
+        } else delete parent.dataset.stageFocus;
+      }
+      // Without a running loop to ease it, the change shows at once.
+      const goal = focused >= 0 ? 1 : 0;
+      if (!frame && (changed || focus !== goal)) {
+        focus = goal;
+        if (initialized) draw();
+      }
+    };
+    // What the pointer and keyboard are already on, for a stage that starts
+    // or finishes under a stationary pointer.
+    const recall = () => {
+      hovered = swatchAt(document.querySelector(".swatch:hover"));
+      keyed = keyedAt(document.activeElement);
+      show();
+    };
+    const hover = (event: PointerEvent) => {
+      hovered = swatchAt(event.target);
+      show();
+    };
+    const out = (event: PointerEvent) => {
+      if (event.relatedTarget) return;
+      hovered = -1;
+      show();
+    };
+    const focusIn = (event: FocusEvent) => {
+      keyed = keyedAt(event.target);
+      show();
+    };
+    const focusOut = (event: FocusEvent) => {
+      if (event.relatedTarget) return;
+      keyed = -1;
+      show();
+    };
+    // A key pressed after a click can make the focused swatch keyboard
+    // focus without moving focus.
+    const keyUp = () => {
+      const next = keyedAt(document.activeElement);
+      if (next === keyed) return;
+      keyed = next;
+      show();
+    };
     const showPhotoOnly = () => {
       container.style.opacity = "0";
       wire.current!.style.opacity = "0";
-      inset.current!.style.opacity = "0";
+      hint.current!.hidden = true;
       photo.style.opacity = "1";
     };
     const refresh = () => {
@@ -215,6 +480,8 @@ export default function Stage({
         if (viewRef.current === "photo") showPhotoOnly();
         return;
       }
+      // With no loop to ease it, a swatch's focus lands where it was going.
+      if (!active()) focus = focused >= 0 ? 1 : 0;
       draw();
       if (active()) {
         frame = raf(tick);
@@ -222,6 +489,9 @@ export default function Stage({
       }
     };
     const skip = () => {
+      if (!current()) return;
+      // Whatever ends the intro early shows the whole palette at once.
+      fillSlots();
       if (initialized && !done) {
         markDone(true);
         refresh();
@@ -285,6 +555,7 @@ export default function Stage({
         // This photo cannot become points. Show it as it is, with nothing
         // left over from the cloud it replaces.
         if (!current()) return;
+        fillSlots();
         dropStale();
         delete parent.dataset.stageStep;
         showPhotoOnly();
@@ -323,13 +594,25 @@ export default function Stage({
       // The host outlives each intro; drop the previous one's timings.
       delete parent.dataset.stageStartedAt;
       delete parent.dataset.stageDoneAt;
+      delete parent.dataset.stageEndsAt;
       parent.dataset.stagePhase = "intro";
       // The photo's own reveal animation would override the fade below the
       // points, so it ends as the stage takes over.
       photo.getAnimations().forEach((animation) => animation.finish());
       // A change to the same photo has no new colors to deliver.
       if (!replay) launched = true;
-      if (reduced || !replay || viewRef.current === "photo") markDone(true);
+      // Colors fly only into swatches still waiting for them; input or a
+      // deadline that came first already showed the palette.
+      if (reduced || !replay || viewRef.current === "photo" || !slotsHeld())
+        markDone(true);
+      else {
+        // However slowly frames come, the palette shows soon after the
+        // planned end, with nothing left in flight.
+        claimSlots(length + 600, deadline);
+        parent.dataset.stageEndsAt = String(
+          Math.round(performance.now() + length),
+        );
+      }
       refresh();
       dropStale();
     };
@@ -353,13 +636,31 @@ export default function Stage({
     const sizing = new ResizeObserver(resize);
     sizing.observe(parent);
     media.addEventListener("change", preference);
+    turnBy(0);
+    layer.addEventListener("pointerdown", grab);
+    layer.addEventListener("pointermove", drag);
+    layer.addEventListener("pointerup", letGo);
+    layer.addEventListener("pointercancel", cancel);
+    layer.addEventListener("lostpointercapture", cancel);
+    layer.addEventListener("keydown", press);
+    layer.addEventListener("blur", leave);
     window.addEventListener("pointerdown", skip);
     window.addEventListener("keydown", skip);
     window.addEventListener("scroll", finishFlight, true);
     document.addEventListener("visibilitychange", visibility);
-    void start();
+    document.addEventListener("pointerover", hover);
+    document.addEventListener("pointerout", out);
+    document.addEventListener("focusin", focusIn);
+    document.addEventListener("focusout", focusOut);
+    document.addEventListener("keyup", keyUp);
+    recall();
+    void start().catch(() => {
+      // Neither renderer could start here, so no stage will deliver colors.
+      if (current()) stageUnavailable();
+    });
     return () => {
       disposed = true;
+      dropClaim(deadline);
       stop();
       flights?.finishAll();
       flights?.cancel();
@@ -367,10 +668,23 @@ export default function Stage({
       intersection.disconnect();
       sizing.disconnect();
       media.removeEventListener("change", preference);
+      layer.removeEventListener("pointerdown", grab);
+      layer.removeEventListener("pointermove", drag);
+      layer.removeEventListener("pointerup", letGo);
+      layer.removeEventListener("pointercancel", cancel);
+      layer.removeEventListener("lostpointercapture", cancel);
+      layer.removeEventListener("keydown", press);
+      layer.removeEventListener("blur", leave);
       window.removeEventListener("pointerdown", skip);
       window.removeEventListener("keydown", skip);
       window.removeEventListener("scroll", finishFlight, true);
       document.removeEventListener("visibilitychange", visibility);
+      document.removeEventListener("pointerover", hover);
+      document.removeEventListener("pointerout", out);
+      document.removeEventListener("focusin", focusIn);
+      document.removeEventListener("focusout", focusOut);
+      document.removeEventListener("keyup", keyUp);
+      delete parent.dataset.stageFocus;
       photo.style.opacity = "";
     };
   }, [result, host, hero]);
@@ -395,7 +709,21 @@ export default function Stage({
         aria-hidden={view === "photo"}
       />
       <canvas className="stage-wire" ref={wire} aria-hidden="true" />
-      <img className="stage-inset" ref={inset} src={result.image.src} alt="" />
+      <div
+        className="stage-turn"
+        ref={turner}
+        role="slider"
+        tabIndex={0}
+        aria-label="Turn the color cloud"
+        aria-valuemin={0}
+        aria-valuemax={359}
+        aria-valuenow={0}
+        aria-valuetext="0 degrees"
+        hidden={view === "photo"}
+      />
+      <span className="stage-hint" ref={hint} aria-hidden="true" hidden>
+        Drag to turn
+      </span>
       <div
         className="value-switch stage-switch"
         role="group"
@@ -412,7 +740,7 @@ export default function Stage({
             aria-pressed={view === value}
             onClick={() => {
               controls.current.skip();
-              sessionView = value;
+              session.view = value;
               viewRef.current = value;
               setView(value);
               controls.current.refresh();

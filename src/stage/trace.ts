@@ -1,6 +1,12 @@
 import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import { PINNED_BOX, type StageSamples } from "../lib/extraction";
-import { colorPoint, project, type Vec3 } from "./math";
+import {
+  boxCorners,
+  colorPoint,
+  fitPoint,
+  project,
+  type ViewFit,
+} from "./math";
 import type { DrawState } from "./data";
 
 /** Points the 2D painter draws, the same figure the stage falls back to. */
@@ -55,27 +61,23 @@ export function cloudAtRest({ angle, points }: TraceState): DrawState {
     done: true,
     angle,
     points,
+    // The trace draws its boxes at every step.
+    boxes: 1,
   };
 }
 
 /** Screen-space edges of every box in a step, as [x1, y1, x2, y2]. */
 export function stepEdges(
   step: SplitStep,
+  fit: ViewFit,
   angle: number,
   width: number,
   height: number,
 ): [number, number, number, number][] {
   const edges: [number, number, number, number][] = [];
   for (const { bounds } of step) {
-    const corners = Array.from({ length: 8 }, (_, i) =>
-      project(
-        [0, 1, 2].map(
-          (k) => (i & (1 << k) ? bounds.max[k] : bounds.min[k]) - 127.5,
-        ) as Vec3,
-        angle,
-        width,
-        height,
-      ),
+    const corners = boxCorners(bounds, fit).map((p) =>
+      project(p, angle, width, height, fit),
     );
     corners.forEach((p, i) => {
       for (let k = 0; k < 3; k++)
@@ -89,6 +91,7 @@ export function stepEdges(
 export function finalMarkers(
   step: SplitStep,
   space: ColorSpace,
+  fit: ViewFit,
   angle: number,
   width: number,
   height: number,
@@ -96,10 +99,11 @@ export function finalMarkers(
   const total = step.reduce((sum, box) => sum + box.population, 0);
   return step.map(({ color, population }) => {
     const [x, y] = project(
-      colorPoint([color.r, color.g, color.b], space),
+      fitPoint(colorPoint([color.r, color.g, color.b], space), fit),
       angle,
       width,
       height,
+      fit,
     );
     // Marker size tracks how much of the image the color covers.
     const radius = 4.5 + 7 * Math.sqrt(total ? population / total : 0);
@@ -115,6 +119,7 @@ export function drawTrace(
   canvas: HTMLCanvasElement,
   steps: SplitStep[],
   space: ColorSpace,
+  fit: ViewFit,
   state: TraceState,
   width: number,
   height: number,
@@ -135,7 +140,13 @@ export function drawTrace(
   ctx.strokeStyle = "rgba(218, 226, 231, 0.42)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (const [x1, y1, x2, y2] of stepEdges(step, state.angle, width, height)) {
+  for (const [x1, y1, x2, y2] of stepEdges(
+    step,
+    fit,
+    state.angle,
+    width,
+    height,
+  )) {
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
   }
@@ -146,6 +157,7 @@ export function drawTrace(
   for (const { x, y, radius, color } of finalMarkers(
     step,
     space,
+    fit,
     state.angle,
     width,
     height,

@@ -14,7 +14,7 @@ import {
   formatHsl,
 } from "./lib/color";
 import { type ExportFormat, exportPalette } from "./lib/exporters";
-import { nearestColorName } from "./lib/names";
+import { nearestColorName, paletteColorNames } from "./lib/names";
 import { encodePaletteHash } from "./lib/share";
 import { downloadBlob, renderPaletteCard } from "./lib/paletteCard";
 import { useImageSource, type Source } from "./hooks/useImageSource";
@@ -23,6 +23,7 @@ import { useColorSpaceComparison } from "./hooks/useColorSpaceComparison";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useSharedPalette } from "./hooks/useSharedPalette";
 import type { StageResult } from "./components/Stage";
+import { stageUnavailable } from "./stage/handoff";
 
 const loadStage = () => import("./components/Stage");
 const Stage = lazy(loadStage);
@@ -196,7 +197,13 @@ export default function App() {
       );
       await afterLargestPaint(image);
       if (cancelled) return;
-      await loadStage();
+      try {
+        await loadStage();
+      } catch {
+        // Without the stage the palette shows as it is, never as slots.
+        stageUnavailable();
+        return;
+      }
       await new Promise<void>((resolve) => {
         if ("requestIdleCallback" in window)
           window.requestIdleCallback(() => resolve(), { timeout: 300 });
@@ -236,13 +243,18 @@ export default function App() {
   // Before the first palette arrives the dock keeps its place with a hidden
   // stand-in color, so nothing below it moves when the palette lands.
   const inspected = selected ?? PLACEHOLDER_COLOR;
+  // Swatches are in palette order, so a swatch's index finds its name.
+  const names = useMemo(() => paletteColorNames(colors), [colors]);
+  const inspectedName = selectedSwatch
+    ? names[presentation.swatches.indexOf(selectedSwatch)]
+    : nearestColorName(inspected);
   const showWeights = !!loaded && locked.length === 0;
 
   const copy = (text: string, key: string) => void copyFeedback.copy(text, key);
   const saveCard = async () => {
     try {
       const blob = await renderPaletteCard(
-        colors.map((color) => ({ color, name: nearestColorName(color) })),
+        colors.map((color, index) => ({ color, name: names[index] })),
         loaded?.name ?? "Shared palette",
       );
       downloadBlob(blob, `palette-${rgbToHex(colors[0]).slice(1)}.png`);
@@ -259,7 +271,7 @@ export default function App() {
       className="button primary upload-main"
       onClick={() => fileInput.current?.click()}
     >
-      <Icon name="upload" /> Upload image <span className="shortcut">↗</span>
+      <Icon name="upload" /> Upload image
     </button>
   );
   const sourceControls = (
@@ -640,7 +652,7 @@ export default function App() {
             aria-hidden={!selected || undefined}
           >
             <i style={{ background: rgbToHex(inspected) }} />
-            <span>{nearestColorName(inspected)}</span>
+            <span>{inspectedName}</span>
             {[
               rgbToHex(inspected),
               formatRgb(inspected),

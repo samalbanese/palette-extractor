@@ -179,6 +179,36 @@ describe("runExtraction stage samples", () => {
     ]);
   });
 
+  for (const colorSpace of ["rgb", "oklab"] as ColorSpace[])
+    it(`reports the color range of pixels the samples skip, covering every split box, in ${colorSpace}`, () => {
+      // Pixel 1 is red, and sampling every 5.12th pixel never reaches it.
+      const buffer = image(320, 320, (x, y) =>
+        x === 1 && y === 0 ? [255, 0, 0, 255] : [128, 128, 128, 255],
+      );
+      const { samples, steps } = runExtraction(
+        request(buffer, 320, 320, { colorSpace }),
+      ).message;
+      const sampled = new Set<string>();
+      for (let i = 0; i < samples.groups.length; i++)
+        sampled.add(samples.colors.slice(3 * i, 3 * i + 3).join());
+      expect(sampled).toEqual(new Set(["128,128,128"]));
+      const { min, max } = samples.extent!;
+      for (const step of steps)
+        for (const { bounds } of step)
+          for (let k = 0; k < 3; k++) {
+            expect(bounds.min[k]).toBeGreaterThanOrEqual(min[k]);
+            expect(bounds.max[k]).toBeLessThanOrEqual(max[k]);
+          }
+      expect(steps.flat().length).toBeGreaterThan(0);
+    });
+
+  it("leaves the range out when every pixel is sampled", () => {
+    const buffer = image(4, 3, () => [10, 20, 30, 255]);
+    expect(runExtraction(request(buffer, 4, 3)).message.samples.extent).toBe(
+      undefined,
+    );
+  });
+
   for (const colorSpace of ["rgb", "oklab"] as ColorSpace[]) {
     describe(`locked colors in ${colorSpace}`, () => {
       it("labels pixels near a lock with that lock and box 255", () => {

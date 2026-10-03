@@ -16,7 +16,8 @@ import {
   settledAt,
   type ColorTimeline,
 } from "../lib/morph";
-import { nearestColorName } from "../lib/names";
+import { paletteColorNames } from "../lib/names";
+import { fillSlots, holdSlots } from "../stage/handoff";
 import { Swatch, type ValueKind } from "./Swatch";
 
 export interface PaletteEntry {
@@ -118,6 +119,10 @@ const reducedMotion = () =>
 const motionOf = (swatch: HTMLElement) =>
   swatch.querySelector<HTMLElement>(":scope > .swatch-motion")!;
 
+// Everything printed on or under a swatch's color, which would otherwise
+// cross its neighbors while swatches trade places.
+const LABELS = ".swatch-select > span, .lock-button, .swatch-info";
+
 export function SwatchGrid({
   presentation,
   valueKind,
@@ -146,6 +151,10 @@ export function SwatchGrid({
   onSelect: (id: string) => void;
 }) {
   const grid = useRef<HTMLDivElement>(null);
+  const names = useMemo(
+    () => paletteColorNames(presentation.swatches.map((s) => s.color)),
+    [presentation.swatches],
+  );
   const timelines = useRef(new Map<string, ColorTimeline>());
   // The color each swatch last painted, which is where a new melt begins.
   const shown = useRef(new Map<string, RGB>());
@@ -195,6 +204,11 @@ export function SwatchGrid({
     timelines.current = next;
 
     const elements = swatchElements();
+    // A new photo's colors arrive with the stage's flyers, so its swatches
+    // start empty; any other change shows them whole.
+    if (presentation.finalColors)
+      holdSlots(elements.map(({ element }) => element));
+    else fillSlots();
     const paint = (time: number) => {
       shown.current = new Map();
       for (const { element, id } of elements) {
@@ -206,7 +220,10 @@ export function SwatchGrid({
         element.style.setProperty("--label", labelColorFor(color));
       }
     };
+    // Moves and label fades, cancelled together if the morph is cut short.
     const moves: Animation[] = [];
+    for (const animation of node.getAnimations({ subtree: true }))
+      if (animation.id === "morph-labels") animation.cancel();
     for (const { element, id } of elements) {
       const motion = motionOf(element);
       for (const animation of motion.getAnimations())
@@ -224,6 +241,20 @@ export function SwatchGrid({
       move.id = "morph-move";
       moves.push(move);
     }
+    // While anything moves, every label steps aside: out early in the move,
+    // back once each swatch has nearly reached its slot.
+    if (moves.length)
+      for (const label of node.querySelectorAll(LABELS)) {
+        const fade = label.animate(
+          [
+            { opacity: 0, offset: 0.15 },
+            { opacity: 0, offset: 0.85 },
+          ],
+          { duration: MORPH_MS },
+        );
+        fade.id = "morph-labels";
+        moves.push(fade);
+      }
 
     const state = loop.current;
     const settle = () => {
@@ -279,7 +310,9 @@ export function SwatchGrid({
   useEffect(() => {
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     const change = () => {
-      if (media.matches) finish.current();
+      if (!media.matches) return;
+      finish.current();
+      fillSlots();
     };
     media.addEventListener("change", change);
     return () => media.removeEventListener("change", change);
@@ -303,7 +336,7 @@ export function SwatchGrid({
               index={i}
               locked={lockedSet.has(hex)}
               weight={total ? swatch.population / total : 0}
-              name={nearestColorName(swatch.color)}
+              name={names[i]}
               onToggleLock={() => onToggleLock(swatch.color)}
               valueKind={valueKind}
               onCopy={onCopy}

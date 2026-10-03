@@ -161,6 +161,14 @@ const elementName = (page: Page, selector: string) =>
  * image or canvas (in the image list, and checked against its pixels).
  */
 async function scan(page: Page) {
+  // The drag hint is judged where its fade-in settles: a frozen clock can
+  // otherwise catch it half drawn.
+  await page.evaluate(() =>
+    document
+      .querySelector(".stage-hint")
+      ?.getAnimations()
+      .forEach((a) => a.finish()),
+  );
   // Axe yields between rules with zero-delay timeouts, which a paused page
   // clock never runs. For the scan only, those run on a message channel and
   // every longer timeout (axe's own guards, and the page's) waits, so the

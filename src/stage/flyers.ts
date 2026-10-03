@@ -27,12 +27,25 @@ export function flightPath(from: Origin, to: Destination): Keyframe[] {
   });
 }
 
+// The first chip lands at this share of the flight; the rest follow in
+// swatch order, so the palette fills left to right instead of all at once.
+const FIRST_LANDING = 0.72;
+
+/** How long the chip for swatch `index` of `count` spends in the air. */
+export function flightTime(index: number, count: number, duration: number) {
+  const share =
+    count > 1 ? FIRST_LANDING + ((1 - FIRST_LANDING) * index) / (count - 1) : 1;
+  return Math.max(1, duration * share);
+}
+
 export function launchFlyers(
   overlay: HTMLElement,
   origins: (Origin | null)[],
   colors: RGB[],
   duration: number,
   reduced = false,
+  /** Runs once per swatch as its color arrives, by chip or by pulse. */
+  onLand: (target: HTMLElement) => void = () => {},
 ) {
   const chips: { node: HTMLElement; animation: Animation; land: () => void }[] =
     [];
@@ -47,6 +60,7 @@ export function launchFlyers(
     const target = targets[index];
     if (!target || landed.has(index)) return;
     landed.add(index);
+    onLand(target);
     target.dataset.stageLanding = String(
       Number(target.dataset.stageLanding ?? 0) + 1,
     );
@@ -80,6 +94,7 @@ export function launchFlyers(
         return;
       const node = document.createElement("div");
       node.className = "stage-flyer";
+      node.dataset.swatchIndex = String(index);
       Object.assign(node.style, {
         width: `${rect.width}px`,
         height: `${rect.height}px`,
@@ -87,7 +102,7 @@ export function launchFlyers(
       });
       overlay.append(node);
       const animation = node.animate(flightPath(origin, rect), {
-        duration,
+        duration: flightTime(index, colors.length, duration),
         easing: "cubic-bezier(.2,.65,.25,1)",
         fill: "both",
       });

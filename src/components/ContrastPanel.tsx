@@ -65,18 +65,20 @@ export function ContrastPanel({ palette }: { palette: RGB[] }) {
                   >
                     <span>Aa</span>
                     <span style={{ color: labelColorFor(pair.bg) }}>
-                      {formatRatio(pair.ratio)}:1
-                      <br />
-                      {pair.level === "AA Large"
-                        ? "Large text only"
-                        : pair.level}
+                      <span className="contrast-ratio">
+                        {formatRatio(pair.ratio)}:1
+                      </span>
+                      <span className="contrast-verdict">
+                        {pair.level === "AA Large"
+                          ? "Large text only"
+                          : pair.level}
+                      </span>
                     </span>
                   </span>
                   <span className="contrast-meta">
                     <code aria-live="polite">
                       {copiedIndex === i ? "Copied CSS!" : `${fg} / ${bg}`}
                     </code>
-                    <span>{pair.level}</span>
                   </span>
                 </button>
               </li>

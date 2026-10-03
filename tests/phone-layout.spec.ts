@@ -237,7 +237,7 @@ test.describe("phone layout", () => {
     expect(copies).toHaveLength(6);
     for (const copy of copies) expect(palette).toContain(copy);
     expect(names("moved")).toEqual([
-      "Upload image ↗",
+      "Upload image",
       "Try Golden dunes",
       "Try Forest floor",
       "Try Coastal color",

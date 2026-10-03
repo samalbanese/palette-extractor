@@ -6,7 +6,7 @@ import {
   formatHsl,
   labelColorFor,
 } from "./color";
-import { nearestColorName } from "./names";
+import { paletteColorNames } from "./names";
 
 export type ExportFormat = "css" | "tailwind" | "scss" | "svg" | "json";
 
@@ -34,8 +34,9 @@ export function toTailwind(palette: RGB[]): string {
 }
 
 export function toJson(palette: RGB[]): string {
-  const entries = palette.map((color) => ({
-    name: nearestColorName(color),
+  const names = paletteColorNames(palette);
+  const entries = palette.map((color, index) => ({
+    name: names[index],
     hex: rgbToHex(color),
     rgb: formatRgb(color),
     hsl: formatHsl(rgbToHsl(color)),

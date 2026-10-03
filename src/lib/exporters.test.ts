@@ -7,6 +7,7 @@ import {
   toSvg,
   exportPalette,
 } from "./exporters";
+import { paletteColorNames } from "./names";
 
 const palette = [
   { r: 46, g: 49, b: 99 },
@@ -47,6 +48,22 @@ describe("toJson (acceptance: valid, paste-ready JSON)", () => {
       rgb: "rgb(46, 49, 99)",
       hsl: "hsl(237, 37%, 28%)",
     });
+  });
+
+  it("names every color once, the same way the palette does", () => {
+    const forest = [
+      { r: 23, g: 37, b: 30 },
+      { r: 35, g: 53, b: 49 },
+      { r: 41, g: 64, b: 58 },
+      { r: 48, g: 81, b: 74 },
+      { r: 51, g: 114, b: 101 },
+      { r: 44, g: 55, b: 49 },
+    ];
+    const names = JSON.parse(toJson(forest)).map(
+      (entry: { name: string }) => entry.name,
+    );
+    expect(names).toEqual(paletteColorNames(forest));
+    expect(new Set(names).size).toBe(6);
   });
 });
 

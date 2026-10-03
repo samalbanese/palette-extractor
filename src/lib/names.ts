@@ -74,6 +74,9 @@ export const COLOR_NAME_TABLE: NamedColor[] = [
   { name: "Forest Green", hex: "#1f5c3a" },
   { name: "Pine", hex: "#244d3d" },
   { name: "Hunter Green", hex: "#355e3b" },
+  { name: "Black Forest", hex: "#17251e" },
+  { name: "Evergreen", hex: "#223630" },
+  { name: "Graphite Green", hex: "#2d3833" },
   { name: "Emerald", hex: "#148f5b" },
   { name: "Kelly Green", hex: "#3aaa35" },
   { name: "Grass", hex: "#68a33e" },
@@ -165,6 +168,51 @@ export function nearestColorName(rgb: RGB): string {
   }
   return nearest.name;
 }
+
+/**
+ * Names a whole palette with no name used twice. When two colors share a
+ * nearest name, the closer one keeps it and the other takes its next nearest
+ * unused name. Matching closest pairs first means a color's name depends on
+ * the palette, not on the order it is sorted in, so every view of the same
+ * palette agrees.
+ */
+export function paletteColorNames(palette: RGB[]): string[] {
+  const ranked = palette.map((rgb) =>
+    resolved
+      .map((entry) => ({
+        name: entry.name,
+        distance: colorDistanceSq(rgb, entry.color),
+      }))
+      .sort((a, b) => a.distance - b.distance),
+  );
+  const names: string[] = new Array(palette.length);
+  const used = new Set<string>();
+  for (let round = 0; round < palette.length; round++) {
+    let pick = -1;
+    let pickName = "";
+    let pickDistance = Infinity;
+    ranked.forEach((candidates, index) => {
+      if (names[index] !== undefined) return;
+      const best = candidates.find((candidate) => !used.has(candidate.name))!;
+      // Equal distances go to the lower RGB value, so a tie never depends
+      // on the order the palette is in.
+      if (
+        best.distance < pickDistance ||
+        (best.distance === pickDistance &&
+          rgbKey(palette[index]) < rgbKey(palette[pick]))
+      ) {
+        pick = index;
+        pickName = best.name;
+        pickDistance = best.distance;
+      }
+    });
+    names[pick] = pickName;
+    used.add(pickName);
+  }
+  return names;
+}
+
+const rgbKey = ({ r, g, b }: RGB) => (r << 16) | (g << 8) | b;
 
 function hexToRgb(hex: string): RGB {
   return {

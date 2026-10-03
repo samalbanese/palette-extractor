@@ -39,6 +39,13 @@ export interface StageSamples {
   groups: Uint8Array;
   boxes: Uint8Array;
   groupColors: RGB[];
+  /**
+   * The color range of every pixel, in the quantizer's 0-255 coordinates for
+   * the run's color space. Present only when sampling skipped pixels: a rare
+   * color can then be missing from the samples while the split boxes still
+   * reach it, so views fit to this range as well.
+   */
+  extent?: { min: Pixel; max: Pixel };
 }
 
 export interface ExtractionMessage {
@@ -46,6 +53,20 @@ export interface ExtractionMessage {
   pixels: Pixel[];
   steps: SplitStep[];
   samples: StageSamples;
+}
+
+/** The smallest box, in the quantizer's coordinates, holding every pixel. */
+function colorExtent(pixels: Pixel[], colorSpace: ColorSpace) {
+  const min: Pixel = [255, 255, 255];
+  const max: Pixel = [0, 0, 0];
+  for (const pixel of pixels) {
+    const c = colorSpace === "oklab" ? oklabCoords(pixel) : pixel;
+    for (let k = 0; k < 3; k++) {
+      if (c[k] < min[k]) min[k] = c[k];
+      if (c[k] > max[k]) max[k] = c[k];
+    }
+  }
+  return { min, max };
 }
 
 /**
@@ -150,6 +171,7 @@ export function runExtraction(request: WorkerRequest): {
     groups,
     boxes,
     groupColors: [...result.map((entry) => entry.color), ...exclude],
+    ...(n < all.length && { extent: colorExtent(all, colorSpace) }),
   };
   return {
     message: { colors: result, pixels: cubePixels, steps, samples },

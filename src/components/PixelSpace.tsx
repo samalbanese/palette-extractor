@@ -3,7 +3,8 @@ import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import type { StageSamples } from "../lib/extraction";
 import { create as createGL } from "../stage/renderer";
 import { create as create2D } from "../stage/painter2d";
-import type { Renderer } from "../stage/data";
+import { sampleCube, type Renderer } from "../stage/data";
+import { fitView, type ViewFit } from "../stage/math";
 import {
   cloudAtRest,
   drawTrace,
@@ -74,17 +75,25 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
     () => (samples ? traceSamples(samples) : null),
     [samples],
   );
+  // Fitted on every sample, locked ones too, so locking a color never moves
+  // or rescales the view.
+  const fit = useMemo(
+    () =>
+      samples ? fitView(sampleCube(samples, colorSpace), samples.extent) : null,
+    [samples, colorSpace],
+  );
   const available = filtered?.groups.length ?? 0;
   const empty = steps.length === 0 || available === 0;
   const drawn = empty ? 0 : Math.min(available, budget);
+  const groups = steps[step]?.length ?? 0;
   const animate = !reducedMotion && !paused;
 
   // What the drawing code reads, as of the last commit. A render that has
   // not committed yet must never reach a frame, so this is not set while
   // rendering.
-  const latest = useRef({ filtered, steps, colorSpace, step, animate });
+  const latest = useRef({ filtered, fit, steps, colorSpace, step, animate });
   useLayoutEffect(() => {
-    latest.current = { filtered, steps, colorSpace, step, animate };
+    latest.current = { filtered, fit, steps, colorSpace, step, animate };
   });
   const view = useRef<{ restart(): void; sync(): void } | null>(null);
 
@@ -116,7 +125,11 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
     let width = 1,
       height = 1,
       dpr = 1;
-    let uploaded: { samples: StageSamples; space: ColorSpace } | null = null;
+    let uploaded: {
+      samples: StageSamples;
+      space: ColorSpace;
+      fit: ViewFit;
+    } | null = null;
     let ready = false,
       disposed = false,
       visible = true,
@@ -169,7 +182,16 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
       if (points.getAttribute("aria-label") !== label)
         points.setAttribute("aria-label", label);
       renderer.draw(cloudAtRest(state));
-      drawTrace(overlay, steps, colorSpace, state, width, height, dpr);
+      drawTrace(
+        overlay,
+        steps,
+        colorSpace,
+        uploaded!.fit,
+        state,
+        width,
+        height,
+        dpr,
+      );
       host.dataset.drawnStep = String(step);
     };
     const tick = (now: number) => {
@@ -198,18 +220,18 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
     const sync = () => {
       cancelAnimationFrame(frame);
       frame = 0;
-      const { filtered, colorSpace, animate } = latest.current;
-      if (disposed || !filtered) return;
+      const { filtered, fit, colorSpace, animate } = latest.current;
+      if (disposed || !filtered || !fit) return;
       if (
         !uploaded ||
         uploaded.samples !== filtered ||
         uploaded.space !== colorSpace
       ) {
-        uploaded = { samples: filtered, space: colorSpace };
+        uploaded = { samples: filtered, space: colorSpace, fit };
         ready = false;
         delete host.dataset.drawnStep;
         const current = ++job;
-        void renderer.setSamples(filtered, colorSpace).then(() => {
+        void renderer.setSamples(filtered, colorSpace, fit).then(() => {
           if (current !== job || disposed) return;
           ready = true;
           sync();
@@ -315,8 +337,8 @@ export function PixelSpace({ samples, steps, colorSpace }: PixelSpaceProps) {
             <span>pixels visualized</span>
           </div>
           <div>
-            <strong>{steps[step]?.length ?? 0}</strong>
-            <span>color groups</span>
+            <strong>{groups}</strong>
+            <span>{groups === 1 ? "color group" : "color groups"}</span>
           </div>
           <div>
             <strong>100%</strong>
