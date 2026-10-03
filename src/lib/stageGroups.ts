@@ -1,4 +1,4 @@
-import { oklabDistance } from "@samalbanese/median-cut";
+import { oklabDistance } from "@relaywright/median-cut";
 import { rgbToHex, type RGB } from "./color";
 import type { StageSamples } from "./extraction";
 

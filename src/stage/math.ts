@@ -2,7 +2,7 @@ import {
   oklabCoords,
   type ColorSpace,
   type Pixel,
-} from "@samalbanese/median-cut";
+} from "@relaywright/median-cut";
 import { NO_SWATCH } from "../lib/stageGroups";
 
 /** A point in the color cube, centered on 0 (each axis -127.5..127.5). */

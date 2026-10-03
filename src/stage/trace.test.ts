@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SplitStep } from "@samalbanese/median-cut";
+import type { SplitStep } from "@relaywright/median-cut";
 import { PINNED_BOX, type StageSamples } from "../lib/extraction";
 import { project } from "./math";
 import { cloudAtRest, finalMarkers, stepEdges, traceSamples } from "./trace";

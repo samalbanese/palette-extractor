@@ -1,4 +1,4 @@
-import type { SplitStep } from "@samalbanese/median-cut";
+import type { SplitStep } from "@relaywright/median-cut";
 import { project, type Vec3 } from "./math";
 import type { DrawState } from "./data";
 

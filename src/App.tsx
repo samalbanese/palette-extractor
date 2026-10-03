@@ -93,7 +93,7 @@ const samples: Source[] = [
     src: sunset,
     name: "Coastal color",
     credit: "Palette Extractor",
-    creditUrl: "https://github.com/samalbanese/palette-extractor",
+    creditUrl: "https://github.com/relaywright/palette-extractor",
   },
 ];
 const tabs = [
@@ -348,7 +348,7 @@ export default function App() {
             <i /> Local by design
           </span>
           <a
-            href="https://github.com/samalbanese/palette-extractor"
+            href="https://github.com/relaywright/palette-extractor"
             target="_blank"
             rel="noreferrer"
           >
@@ -773,11 +773,11 @@ export default function App() {
           never leave this browser.
         </span>
         <a
-          href="https://samalbanese.com/portfolio"
+          href="https://github.com/relaywright"
           target="_blank"
           rel="noreferrer"
         >
-          A small tool by Sam Albanese <Icon name="arrow" size={14} />
+          A small tool by relaywright <Icon name="arrow" size={14} />
         </a>
       </footer>
       <span className="sr-only" role="status" aria-live="polite">

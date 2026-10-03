@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ColorSpace } from "@samalbanese/median-cut";
+import type { ColorSpace } from "@relaywright/median-cut";
 import type { ExtractionDetail } from "../lib/extract";
 import type { Source } from "./useImageSource";
 

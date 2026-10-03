@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { srgbToOklab } from "@samalbanese/median-cut";
+import { srgbToOklab } from "@relaywright/median-cut";
 import { type RGB } from "./color";
 import {
   colorAt,

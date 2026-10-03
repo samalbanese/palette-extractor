@@ -1,4 +1,4 @@
-import type { ColorSpace } from "@samalbanese/median-cut";
+import type { ColorSpace } from "@relaywright/median-cut";
 import type { StageSamples } from "../lib/extraction";
 import { bitReversalOrder, colorPoint, groupCentroids } from "./math";
 import type { IntroState } from "./timeline";

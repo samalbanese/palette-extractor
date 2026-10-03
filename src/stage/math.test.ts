@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { oklabCoords, type Pixel } from "@samalbanese/median-cut";
+import { oklabCoords, type Pixel } from "@relaywright/median-cut";
 import { NO_SWATCH } from "../lib/stageGroups";
 import {
   bitReversalOrder,

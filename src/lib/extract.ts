@@ -4,7 +4,7 @@ import type {
   Pixel,
   SplitStep,
   WeightedColor,
-} from "@samalbanese/median-cut";
+} from "@relaywright/median-cut";
 import type { StageSamples, WorkerRequest } from "./extraction";
 const MAX_DIMENSION = 320;
 const UNREADABLE = "Couldn't read that image. Try a JPG, PNG, WebP, or SVG.";

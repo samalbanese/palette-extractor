@@ -13,10 +13,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:lib": "npm run build -w @samalbanese/median-cut",
+    "build:lib": "npm run build -w @relaywright/median-cut",
     "check:bundle": "node scripts/check-bundle.mjs",
     "preview": "vite preview",
-    "prepare": "npm run build -w @samalbanese/median-cut",
+    "prepare": "npm run build -w @relaywright/median-cut",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
@@ -24,7 +24,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@samalbanese/median-cut": "*",
+    "@relaywright/median-cut": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

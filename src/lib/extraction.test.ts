@@ -4,7 +4,7 @@ import {
   oklabCoords,
   type ColorSpace,
   type Pixel,
-} from "@samalbanese/median-cut";
+} from "@relaywright/median-cut";
 import { colorDistanceSq, type RGB } from "./color";
 import {
   PINNED_BOX,

@@ -1,4 +1,4 @@
-# @samalbanese/median-cut
+# @relaywright/median-cut
 
 A from-scratch median-cut color quantizer for reducing an image's pixels
 to a small palette. It has an optional OKLab perceptual mode, so grouping
@@ -9,13 +9,13 @@ from the input, never an averaged color that appears nowhere in the source.
 ## Install
 
 ```sh
-npm install @samalbanese/median-cut
+npm install @relaywright/median-cut
 ```
 
 ## Example
 
 ```js
-import { medianCut } from "@samalbanese/median-cut";
+import { medianCut } from "@relaywright/median-cut";
 
 const canvas = document.createElement("canvas");
 canvas.width = img.width;
@@ -56,7 +56,7 @@ Types: `RGB` (`{ r, g, b }`), `Pixel` (`[r, g, b]` tuple), `Oklab`
 visualizing the algorithm. Pass `assignments: true`:
 
 ```ts
-import { medianCutTrace } from "@samalbanese/median-cut";
+import { medianCutTrace } from "@relaywright/median-cut";
 
 const { steps, result, assignments } = medianCutTrace(pixels, 6, {
   assignments: true,
@@ -98,4 +98,4 @@ needed for the output.
 ## Demo
 
 See it running on real images at the
-[Palette Extractor live demo](https://palette.samalbanese.com/).
+[Palette Extractor live demo](https://palette-extractor.relaywright.workers.dev/).
