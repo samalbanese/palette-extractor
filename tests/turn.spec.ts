@@ -63,10 +63,15 @@ test("a fling glides on, then settles back into the slow turn", async ({
     await page.mouse.down();
     await page.mouse.move(x + box.width / 4, y, { steps: 4 });
     await page.mouse.up();
+    const start = Date.now();
     const released = await degrees(page);
     await page.waitForTimeout(300);
+    const glide = moved(released, await degrees(page));
+    // Read late, the slow turn alone could cover the distance; such an
+    // attempt says nothing about the throw and is retried.
+    expect(Date.now() - start).toBeLessThan(450);
     // The slow turn alone covers under 5 degrees in 300 ms.
-    expect(moved(released, await degrees(page))).toBeGreaterThan(8);
+    expect(glide).toBeGreaterThan(8);
   }).toPass({ timeout: 15000 });
   // Long after, it is back to the slow turn: about 15 degrees a second.
   await page.waitForTimeout(3000);
