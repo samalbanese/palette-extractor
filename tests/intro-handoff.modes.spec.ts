@@ -51,7 +51,12 @@ for (const width of [1440, 390])
     await expect
       .poll(
         async () => {
-          await page.clock.runFor(16);
+          // Small steps until the stage starts: its code loads in real time, and
+          // racing the page clock ahead could pass the first-load deadline.
+          const started = await host(page).getAttribute(
+            "data-stage-started-at",
+          );
+          await page.clock.runFor(started ? 16 : 2);
           const step = await host(page).getAttribute("data-stage-step");
           if (step === "split")
             frames.splice(0, frames.length, await shown(page));

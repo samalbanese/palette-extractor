@@ -302,11 +302,10 @@ test("switching to Perceptual re-extracts, announces what changed, and highlight
 
   await page.getByRole("radio", { name: "RGB", exact: true }).check();
   await ready(page);
-  const statusBack = (
-    await page.locator('span.sr-only[aria-live="polite"]').innerText()
-  ).trim();
-  expect(statusBack).toMatch(
-    /^(RGB changed \d+ of \d+ colors\.|Same colors in both color spaces\.)$/,
+  // Waits for the new announcement: ready can pass before it replaces the
+  // last one.
+  await expect(page.locator('span.sr-only[aria-live="polite"]')).toHaveText(
+    /^\s*(RGB changed \d+ of \d+ colors\.|Same colors in both color spaces\.)\s*$/,
   );
 });
 
