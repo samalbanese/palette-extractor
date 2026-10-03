@@ -1,4 +1,5 @@
 import { type RGB, relativeLuminance, rgbToHsl } from "./color";
+import { oklabDistance } from "@relaywright/median-cut";
 import { contrastRatio } from "./contrast";
 
 /** Choose roles only from the extracted palette. Never invent an accessible pair. */
@@ -17,6 +18,34 @@ export function suggestRoles(palette: RGB[]) {
       }
     }
   }
-  const accent = [...palette].sort((a, b) => rgbToHsl(b).s - rgbToHsl(a).s)[0];
-  return { background, foreground, accent, ratio };
+  return {
+    background,
+    foreground,
+    accent: pickAccent(palette, background, foreground),
+    ratio,
+  };
+}
+
+// The accent fills a button and a sticker on either surface, so it needs to
+// look clearly different from both. Measured in OKLab, where a hue change
+// counts as much as a lightness change; 0.02 is about the smallest visible
+// step.
+const ACCENT_DISTANCE = 0.1;
+
+/** The most saturated color that stands out from both surface colors. */
+function pickAccent(palette: RGB[], background: RGB, foreground: RGB) {
+  const bySaturation = (list: RGB[]) =>
+    [...list].sort((a, b) => rgbToHsl(b).s - rgbToHsl(a).s);
+  // Compare by value: a palette can repeat a color as separate objects.
+  const same = (a: RGB, b: RGB) => a.r === b.r && a.g === b.g && a.b === b.b;
+  const others = palette.filter(
+    (c) => !same(c, background) && !same(c, foreground),
+  );
+  // With only the two surface colors to choose from, the accent shares one.
+  if (!others.length) return bySaturation(palette)[0];
+  const apart = (c: RGB) =>
+    Math.min(oklabDistance(c, background), oklabDistance(c, foreground));
+  const clear = others.filter((c) => apart(c) >= ACCENT_DISTANCE);
+  if (clear.length) return bySaturation(clear)[0];
+  return others.reduce((best, c) => (apart(c) > apart(best) ? c : best));
 }
