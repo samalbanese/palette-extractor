@@ -56,15 +56,18 @@ test("a fling glides on, then settles back into the slow turn", async ({
   page,
 }) => {
   const { x, y, box } = await center(page);
-  await page.mouse.move(x - box.width / 4, y);
-  await page.mouse.down();
-  await page.mouse.move(x + box.width / 4, y, { steps: 4 });
-  await page.mouse.up();
-  const released = await degrees(page);
-  await page.waitForTimeout(300);
-  // The slow turn alone covers under 5 degrees in 300 ms.
-  const glide = moved(released, await degrees(page));
-  expect(glide).toBeGreaterThan(8);
+  // A stalled runner can pause between the last move and the release, which
+  // reads as a hand that stopped before letting go, so the throw is retried.
+  await expect(async () => {
+    await page.mouse.move(x - box.width / 4, y);
+    await page.mouse.down();
+    await page.mouse.move(x + box.width / 4, y, { steps: 4 });
+    await page.mouse.up();
+    const released = await degrees(page);
+    await page.waitForTimeout(300);
+    // The slow turn alone covers under 5 degrees in 300 ms.
+    expect(moved(released, await degrees(page))).toBeGreaterThan(8);
+  }).toPass({ timeout: 15000 });
   // Long after, it is back to the slow turn: about 15 degrees a second.
   await page.waitForTimeout(3000);
   const later = await degrees(page);

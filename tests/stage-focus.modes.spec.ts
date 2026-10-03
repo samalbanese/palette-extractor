@@ -28,6 +28,15 @@ const eased = (page: Page) => page.waitForTimeout(450);
 /** A slow software renderer can take far longer than the ease to draw. */
 const SETTLE = { timeout: 5000 };
 
+/**
+ * Holds the cloud at one angle, as a keyboard turn does while the slider
+ * keeps focus, so counts taken seconds apart compare the same view.
+ */
+const holdStill = async (page: Page) => {
+  await page.getByRole("slider", { name: "Turn the color cloud" }).focus();
+  await page.keyboard.press("ArrowRight");
+};
+
 for (const reduced of [false, true])
   test(`a swatch under the pointer lights up its colors in the cloud${reduced ? " with reduced motion" : ""}`, async ({
     page,
@@ -35,6 +44,7 @@ for (const reduced of [false, true])
     if (reduced) await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await stageDone(page);
+    await holdStill(page);
     await page.mouse.move(2, 2);
     await eased(page);
     const calm = await visible(page);
@@ -131,6 +141,7 @@ test("reduced motion turned on mid-fade lets the whole cloud come back", async (
 }) => {
   await page.goto("/");
   await stageDone(page);
+  await holdStill(page);
   await page.mouse.move(2, 2);
   await eased(page);
   const calm = await visible(page);
