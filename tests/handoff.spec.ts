@@ -250,6 +250,76 @@ test("a stage start that never finishes still fills every swatch in time", async
   expect((await read()).allFilledAt!).toBeLessThanOrEqual(3400 + 50);
 });
 
+test("a stage that starts late still fills by the first-load deadline", async ({
+  page,
+}) => {
+  // The stage arrives with too little time left for even the short intro.
+  await page.route(/\/components\/Stage\.tsx/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2300));
+    await route.continue();
+  });
+  const read = await watchSwatches(page);
+  await page.goto("/");
+  await expect(host(page)).toHaveAttribute("data-stage-ends-at", /\d/, {
+    timeout: 10000,
+  });
+  await allFilled(read);
+  expect((await read()).allFilledAt!).toBeLessThanOrEqual(3400 + 50);
+});
+
+test("a first palette that arrives after the deadline shows at once", async ({
+  page,
+}) => {
+  // The first photo itself is slow, so its palette comes after 3.4 s.
+  await page.route("**/samples/namib.webp", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3600));
+    await route.continue();
+  });
+  const read = await watchSwatches(page);
+  await page.goto("/");
+  await allFilled(read);
+  const seen = await read();
+  expect(seen.slotSeen).toBe(false);
+  expect(seen.firstPaint).toEqual(Array(6).fill("filled"));
+});
+
+for (const action of ["click", "focus"] as const)
+  test(`a ${action} with no pointer or key fills every slot`, async ({
+    page,
+  }) => {
+    // How assistive technology can reach a control: no pointerdown, no key.
+    const read = await watchSwatches(page);
+    await page.goto("/");
+    await expect(page.locator(".swatch[data-slot]")).toHaveCount(6);
+    await page
+      .locator(".swatch-select")
+      .first()
+      .evaluate((control: HTMLElement, how) => control[how](), action);
+    expect((await read()).now).toEqual(Array(6).fill("filled"));
+  });
+
+test("a landing left over from an earlier photo never fills a later photo's slot", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await stageDone(page);
+  const kept = await page.evaluate(async () => {
+    const url = "/src/stage/handoff.ts";
+    const handoff = (await import(
+      /* @vite-ignore */ url
+    )) as typeof import("../src/stage/handoff");
+    const swatches = [...document.querySelectorAll<HTMLElement>(".swatch")];
+    // A flight launched for the photo before this hold lands after it.
+    const earlier = handoff.currentHold();
+    handoff.holdSlots(swatches);
+    handoff.fillSlot(swatches[0], earlier);
+    const stillWaiting = "slot" in swatches[0].dataset;
+    handoff.fillSlots();
+    return stillWaiting;
+  });
+  expect(kept).toBe(true);
+});
+
 test("a photo that cannot be decoded for the stage fills every swatch at once", async ({
   page,
 }) => {

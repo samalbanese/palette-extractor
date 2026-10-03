@@ -15,6 +15,7 @@ import { launchFlyers } from "../stage/flyers";
 import { yieldTask, type CloudData, type Renderer } from "../stage/data";
 import {
   claimSlots,
+  currentHold,
   dropClaim,
   fillSlot,
   fillSlots,
@@ -87,7 +88,12 @@ export default function Stage({
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = media.matches;
     const quality = createQualityMonitor();
-    const current = () => !disposed && generation.current === token;
+    // The palette this stage delivers colors to. React holds a new photo's
+    // slots before this effect starts, so once another palette is held, an
+    // older stage has nothing left to fill or claim.
+    const hold = currentHold();
+    const current = () =>
+      !disposed && generation.current === token && currentHold() === hold;
     const mode = (value: string) => {
       parent.dataset.stageMode = value;
     };
@@ -146,7 +152,7 @@ export default function Stage({
         Math.max(1, length * 0.9 - elapsed),
         reduced,
         (target) => {
-          if (current()) fillSlot(target.closest<HTMLElement>(".swatch"));
+          if (current()) fillSlot(target.closest<HTMLElement>(".swatch"), hold);
         },
       );
     };
