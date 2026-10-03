@@ -16,7 +16,7 @@ export const DEPTH_FADE = 0.45;
 /** Nearest points grow, and farthest shrink, by this share. */
 export const DEPTH_GROW = 0.3;
 /** Points outside the focused swatch's groups keep this share less. */
-export const FOCUS_FADE = 0.95;
+export const FOCUS_FADE = 0.97;
 /** Points inside the focused swatch's groups grow by this share. */
 export const FOCUS_GROW = 0.35;
 /** Points outside them shrink by this share, so dense ones stop stacking. */

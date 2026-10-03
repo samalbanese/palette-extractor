@@ -74,7 +74,8 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
   const gl = canvas.getContext("webgl2", {
     alpha: true,
     antialias: false,
-    premultipliedAlpha: false,
+    // The blend below leaves premultiplied color in the buffer.
+    premultipliedAlpha: true,
     // Keeps the last frame readable, so a paused or finished cloud can be
     // copied (and compared) after it has been composited.
     preserveDrawingBuffer: true,
@@ -188,8 +189,8 @@ export function create(canvas: HTMLCanvasElement): Renderer | null {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.enable(gl.BLEND);
-      // Color blends by the point's alpha; the canvas's own alpha adds up as
-      // coverage, so a point drawn at 50% shows at 50%, not 25%.
+      // Color is premultiplied by the point's alpha and the canvas's own
+      // alpha adds up as coverage, so a point drawn at 50% shows at 50%.
       gl.blendFuncSeparate(
         gl.SRC_ALPHA,
         gl.ONE_MINUS_SRC_ALPHA,

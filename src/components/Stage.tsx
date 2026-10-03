@@ -134,15 +134,18 @@ export default function Stage({
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = media.matches;
     const quality = createQualityMonitor();
-    // Which swatch the pointer or keyboard is on, and how far its groups
-    // stand out in the cloud (eased, 0 to 1). The groups lit stay lit while
-    // the focus fades, so leaving a swatch eases out instead of snapping.
+    // Which swatch the pointer and the keyboard are each on, the one shown
+    // (the pointer's first), and how far its groups stand out in the cloud
+    // (eased, 0 to 1). The groups lit stay lit while the focus fades, so
+    // leaving a swatch eases out instead of snapping.
     const groupSwatch = swatchForGroup(
       result.samples.groupColors,
       result.swatches,
     );
     const lit = new Float32Array(32);
-    let focused = -1,
+    let hovered = -1,
+      keyed = -1,
+      focused = -1,
       focus = 0;
     // The palette this stage delivers colors to. React holds a new photo's
     // slots before this effect starts, so once another palette is held, an
@@ -179,6 +182,8 @@ export default function Stage({
       parent.dataset.stagePhase = "done";
       void (flights?.settled() ?? Promise.resolve()).then(() => {
         if (!current()) return;
+        // The swatches now hold this palette's colors.
+        recall();
         raf(() => {
           if (current())
             parent.dataset.stageDoneAt = String(Math.round(performance.now()));
@@ -359,6 +364,7 @@ export default function Stage({
       hand.turned += by;
       turn.moves.push([event.timeStamp, hand.turned]);
       if (turn.moves.length > 32) turn.moves.shift();
+      if (!by) return;
       turnBy(by);
       turned();
     };
@@ -400,29 +406,65 @@ export default function Stage({
       const index = Number(color?.dataset.swatchIndex ?? -1);
       return index >= 0 && index < result.swatches.length ? index : -1;
     };
-    const point = (index: number) => {
-      if (index === focused || !current()) return;
-      focused = index;
-      if (index >= 0) {
-        groupSwatch.forEach((swatch, group) => {
-          if (group < lit.length)
-            lit[group] = swatch !== NO_SWATCH && swatch === index ? 1 : 0;
-        });
-        parent.dataset.stageFocus = String(index);
-      } else delete parent.dataset.stageFocus;
+    // Focus counts when it came from the keyboard; a click that leaves a
+    // swatch focused should not keep it lit after the pointer moves on.
+    const keyedAt = (target: EventTarget | null) =>
+      target instanceof Element && target.matches(":focus-visible")
+        ? swatchAt(target)
+        : -1;
+    const show = () => {
+      if (!current()) return;
+      const index = hovered >= 0 ? hovered : keyed;
+      const changed = index !== focused;
+      if (changed) {
+        focused = index;
+        if (index >= 0) {
+          groupSwatch.forEach((swatch, group) => {
+            if (group < lit.length)
+              lit[group] = swatch !== NO_SWATCH && swatch === index ? 1 : 0;
+          });
+          parent.dataset.stageFocus = String(index);
+        } else delete parent.dataset.stageFocus;
+      }
       // Without a running loop to ease it, the change shows at once.
-      if (!frame) {
-        focus = index >= 0 ? 1 : 0;
+      const goal = focused >= 0 ? 1 : 0;
+      if (!frame && (changed || focus !== goal)) {
+        focus = goal;
         if (initialized) draw();
       }
     };
-    const hover = (event: PointerEvent) => point(swatchAt(event.target));
-    const out = (event: PointerEvent) => {
-      if (!event.relatedTarget) point(-1);
+    // What the pointer and keyboard are already on, for a stage that starts
+    // or finishes under a stationary pointer.
+    const recall = () => {
+      hovered = swatchAt(document.querySelector(".swatch:hover"));
+      keyed = keyedAt(document.activeElement);
+      show();
     };
-    const focusIn = (event: FocusEvent) => point(swatchAt(event.target));
+    const hover = (event: PointerEvent) => {
+      hovered = swatchAt(event.target);
+      show();
+    };
+    const out = (event: PointerEvent) => {
+      if (event.relatedTarget) return;
+      hovered = -1;
+      show();
+    };
+    const focusIn = (event: FocusEvent) => {
+      keyed = keyedAt(event.target);
+      show();
+    };
     const focusOut = (event: FocusEvent) => {
-      if (!event.relatedTarget) point(-1);
+      if (event.relatedTarget) return;
+      keyed = -1;
+      show();
+    };
+    // A key pressed after a click can make the focused swatch keyboard
+    // focus without moving focus.
+    const keyUp = () => {
+      const next = keyedAt(document.activeElement);
+      if (next === keyed) return;
+      keyed = next;
+      show();
     };
     const showPhotoOnly = () => {
       container.style.opacity = "0";
@@ -438,6 +480,8 @@ export default function Stage({
         if (viewRef.current === "photo") showPhotoOnly();
         return;
       }
+      // With no loop to ease it, a swatch's focus lands where it was going.
+      if (!active()) focus = focused >= 0 ? 1 : 0;
       draw();
       if (active()) {
         frame = raf(tick);
@@ -608,6 +652,8 @@ export default function Stage({
     document.addEventListener("pointerout", out);
     document.addEventListener("focusin", focusIn);
     document.addEventListener("focusout", focusOut);
+    document.addEventListener("keyup", keyUp);
+    recall();
     void start().catch(() => {
       // Neither renderer could start here, so no stage will deliver colors.
       if (current()) stageUnavailable();
@@ -637,6 +683,7 @@ export default function Stage({
       document.removeEventListener("pointerout", out);
       document.removeEventListener("focusin", focusIn);
       document.removeEventListener("focusout", focusOut);
+      document.removeEventListener("keyup", keyUp);
       delete parent.dataset.stageFocus;
       photo.style.opacity = "";
     };

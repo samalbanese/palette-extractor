@@ -304,3 +304,14 @@ test("turning by keyboard also retires the hint", async ({ page }) => {
   await page.keyboard.press("ArrowRight");
   await expect(page.locator(".stage-hint")).toBeHidden();
 });
+
+test("a hand moving only up and down leaves the hint in place", async ({
+  page,
+}) => {
+  const { x, y, box } = await center(page);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + box.height / 4, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.locator(".stage-hint")).toBeVisible();
+});

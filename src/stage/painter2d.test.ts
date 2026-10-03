@@ -67,7 +67,7 @@ function reference(
     ctx.globalAlpha =
       (1 - 0.1 * state.release) *
       (1 - (0.45 * (1 - near) * state.toCloud) / 2) *
-      (1 - 0.95 * (1 - lit) * focus);
+      (1 - 0.97 * (1 - lit) * focus);
     const radius =
       (diameter *
         (1 + 0.3 * near * state.toCloud) *
