@@ -44,6 +44,9 @@ interface Hand {
   x: number;
   y: number;
   turned: number;
+  // Measured when the hand takes hold, so a drag that carries on while the
+  // stage restarts for new colors keeps its scale.
+  width: number;
   // Touch turns the cloud only once the finger has clearly moved sideways,
   // so a swipe meant to scroll the page leaves it alone.
   sideways: boolean;
@@ -309,6 +312,7 @@ export default function Stage({
         x: event.clientX,
         y: event.clientY,
         turned: 0,
+        width: layer.clientWidth,
         sideways: event.pointerType === "mouse",
       };
       turn.keyed = false;
@@ -326,7 +330,7 @@ export default function Stage({
         if (dx < INTENT_PX || dx <= dy) return;
         hand.sideways = true;
       }
-      const by = dragTurn(event.clientX - hand.x, width);
+      const by = dragTurn(event.clientX - hand.x, hand.width);
       hand.x = event.clientX;
       hand.turned += by;
       turn.moves.push([event.timeStamp, hand.turned]);

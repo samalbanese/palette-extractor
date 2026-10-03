@@ -98,6 +98,50 @@ test("a hand holding the cloud keeps it when the palette changes", async ({
   await page.mouse.up();
 });
 
+test("a drag that carries on while the stage restarts keeps its scale", async ({
+  page,
+}) => {
+  // Holds the restarted stage before it has measured its frame or decoded
+  // its photo. Normally that gap lasts a frame; held, the hand can move
+  // inside it.
+  await page.addInitScript(() => {
+    const win = window as unknown as { __holdDecode?: boolean };
+    const observe = ResizeObserver.prototype.observe;
+    ResizeObserver.prototype.observe = function (
+      this: ResizeObserver,
+      ...args: Parameters<ResizeObserver["observe"]>
+    ) {
+      if (!win.__holdDecode) observe.apply(this, args);
+    };
+    const original = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = function (this: HTMLImageElement) {
+      if (!win.__holdDecode || !this.matches(".source-frame > img"))
+        return original.call(this);
+      document.body.dataset.decodeHeld = "";
+      return new Promise<void>(() => {});
+    };
+  });
+  await page.reload();
+  await stageDone(page);
+  const { x, y } = await center(page);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 40, y, { steps: 4 });
+  await page.evaluate(() => {
+    (window as unknown as { __holdDecode?: boolean }).__holdDecode = true;
+  });
+  await page
+    .getByRole("button", { name: "Fewer colors", exact: true })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(page.locator("body")).toHaveAttribute("data-decode-held", "");
+  const before = await degrees(page);
+  // Three pixels is a fraction of a degree across the frame.
+  await page.mouse.move(x + 43, y);
+  await page.waitForTimeout(50);
+  expect(Math.abs(moved(before, await degrees(page)))).toBeLessThan(3);
+  await page.mouse.up();
+});
+
 test.describe("on a touch screen", () => {
   test.use({ hasTouch: true });
 
