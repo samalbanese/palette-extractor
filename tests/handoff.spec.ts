@@ -160,6 +160,23 @@ for (const viewport of [
     expect(seen.allFilledAt!).toBeLessThanOrEqual(endsAt + 600);
   });
 
+test("the share bar and the inspector stay hidden while slots wait", async ({
+  page,
+}) => {
+  const read = await watchSwatches(page);
+  await page.goto("/");
+  await expect(page.locator(".swatch[data-slot]")).toHaveCount(6);
+  const opacities = () =>
+    page.evaluate(() =>
+      [".distribution", ".inspector"].map((selector) =>
+        Number(getComputedStyle(document.querySelector(selector)!).opacity),
+      ),
+    );
+  expect(await opacities()).toEqual([0, 0]);
+  await allFilled(read);
+  await expect.poll(opacities, { timeout: 2000 }).toEqual([1, 1]);
+});
+
 test("a pointerdown at 1 s fills every slot at once", async ({ page }) => {
   const read = await watchSwatches(page);
   await page.goto("/");

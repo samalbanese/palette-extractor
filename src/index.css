@@ -828,6 +828,15 @@ code {
 .swatch[data-slot] :is(.swatch-select > span, .lock-button, .swatch-info > *) {
   opacity: 0;
 }
+/* The share bar and the inspector would give the colors away before they
+   land, so they wait with the slots and fade in once every swatch is full. */
+:is(.distribution, .inspector) {
+  transition: opacity 240ms ease-out;
+}
+body:has(.swatch[data-slot]) :is(.distribution, .inspector) {
+  opacity: 0;
+  transition: none;
+}
 @keyframes swatch-highlight {
   0% {
     box-shadow: 0 0 0 5px rgba(226, 184, 105, 0.35);
