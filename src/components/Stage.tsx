@@ -4,7 +4,7 @@ import type { ColorSpace, SplitStep } from "@relaywright/median-cut";
 import type { Source } from "../hooks/useImageSource";
 import type { RGB } from "../lib/color";
 import type { StageSamples } from "../lib/extraction";
-import { swatchForGroup } from "../lib/stageGroups";
+import { NO_SWATCH, swatchForGroup } from "../lib/stageGroups";
 import { create as createGL } from "../stage/renderer";
 import { create as create2D } from "../stage/painter2d";
 import { drawOverlay } from "../stage/overlay";
@@ -51,6 +51,8 @@ interface Hand {
   // so a swipe meant to scroll the page leaves it alone.
   sideways: boolean;
 }
+/** How long a swatch's groups take to stand out in the cloud, or fade back. */
+const FOCUS_MS = 160;
 /** Below this many pixels a finger has not yet shown which way it moves. */
 const INTENT_PX = 6;
 const STEPS: Record<string, number> = {
@@ -74,7 +76,7 @@ export default function Stage({
   const surface = useRef<HTMLDivElement>(null);
   const wire = useRef<HTMLCanvasElement>(null);
   const portal = useRef<HTMLDivElement>(null);
-  const inset = useRef<HTMLImageElement>(null);
+  const hint = useRef<HTMLSpanElement>(null);
   const turner = useRef<HTMLDivElement>(null);
   // How far the cloud has turned from where it rests, and how fast it is
   // turning. It turns slowly by itself, stops while a hand holds it or the
@@ -132,6 +134,16 @@ export default function Stage({
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = media.matches;
     const quality = createQualityMonitor();
+    // Which swatch the pointer or keyboard is on, and how far its groups
+    // stand out in the cloud (eased, 0 to 1). The groups lit stay lit while
+    // the focus fades, so leaving a swatch eases out instead of snapping.
+    const groupSwatch = swatchForGroup(
+      result.samples.groupColors,
+      result.swatches,
+    );
+    const lit = new Float32Array(32);
+    let focused = -1,
+      focus = 0;
     // The palette this stage delivers colors to. React holds a new photo's
     // slots before this effect starts, so once another palette is held, an
     // older stage has nothing left to fill or claim.
@@ -211,6 +223,10 @@ export default function Stage({
         angle: -Math.PI / 4 + turn.yaw,
         points: fallback ? 4000 : quality.points,
         boxes: boxRoom(intro),
+        // The palette shows through the cloud during the intro; a swatch
+        // can only stand out once it is over.
+        focus: done ? focus : 0,
+        lit,
       };
       parent.dataset.stageAngle = String(degrees());
       if (state.done) markDone(false);
@@ -228,7 +244,8 @@ export default function Stage({
       photo.style.opacity = cloud
         ? String(1 - Math.min(1, elapsed / (length * 0.1)))
         : "1";
-      inset.current!.style.opacity = cloud ? String(state.release) : "0";
+      const hinted = cloud && done && !session.turned;
+      if (hint.current!.hidden === hinted) hint.current!.hidden = !hinted;
       if (cloud) renderer!.draw(state);
       drawOverlay(
         wire.current!,
@@ -274,6 +291,12 @@ export default function Stage({
         turn.spin = next.spin;
         turnBy(next.turned);
       }
+      const goal = focused >= 0 ? 1 : 0;
+      if (focus !== goal)
+        focus =
+          goal > focus
+            ? Math.min(goal, focus + delta / FOCUS_MS)
+            : Math.max(goal, focus - delta / FOCUS_MS);
       if (!fallback) quality.record(delta);
       if (
         !fallback ||
@@ -299,6 +322,7 @@ export default function Stage({
     // With reduced motion, or anything else stopping the loop, a turn by
     // hand still shows at once.
     const turned = () => {
+      session.turned = true;
       if (!frame) draw();
     };
     const grab = (event: PointerEvent) => {
@@ -368,10 +392,42 @@ export default function Stage({
     const leave = () => {
       turn.keyed = false;
     };
+    // A swatch under the pointer or holding focus lights up its groups.
+    const swatchAt = (target: EventTarget | null) => {
+      const color = (target as Element | null)
+        ?.closest?.(".swatch")
+        ?.querySelector<HTMLElement>(".swatch-color");
+      const index = Number(color?.dataset.swatchIndex ?? -1);
+      return index >= 0 && index < result.swatches.length ? index : -1;
+    };
+    const point = (index: number) => {
+      if (index === focused || !current()) return;
+      focused = index;
+      if (index >= 0) {
+        groupSwatch.forEach((swatch, group) => {
+          if (group < lit.length)
+            lit[group] = swatch !== NO_SWATCH && swatch === index ? 1 : 0;
+        });
+        parent.dataset.stageFocus = String(index);
+      } else delete parent.dataset.stageFocus;
+      // Without a running loop to ease it, the change shows at once.
+      if (!frame) {
+        focus = index >= 0 ? 1 : 0;
+        if (initialized) draw();
+      }
+    };
+    const hover = (event: PointerEvent) => point(swatchAt(event.target));
+    const out = (event: PointerEvent) => {
+      if (!event.relatedTarget) point(-1);
+    };
+    const focusIn = (event: FocusEvent) => point(swatchAt(event.target));
+    const focusOut = (event: FocusEvent) => {
+      if (!event.relatedTarget) point(-1);
+    };
     const showPhotoOnly = () => {
       container.style.opacity = "0";
       wire.current!.style.opacity = "0";
-      inset.current!.style.opacity = "0";
+      hint.current!.hidden = true;
       photo.style.opacity = "1";
     };
     const refresh = () => {
@@ -548,6 +604,10 @@ export default function Stage({
     window.addEventListener("keydown", skip);
     window.addEventListener("scroll", finishFlight, true);
     document.addEventListener("visibilitychange", visibility);
+    document.addEventListener("pointerover", hover);
+    document.addEventListener("pointerout", out);
+    document.addEventListener("focusin", focusIn);
+    document.addEventListener("focusout", focusOut);
     void start().catch(() => {
       // Neither renderer could start here, so no stage will deliver colors.
       if (current()) stageUnavailable();
@@ -573,6 +633,11 @@ export default function Stage({
       window.removeEventListener("keydown", skip);
       window.removeEventListener("scroll", finishFlight, true);
       document.removeEventListener("visibilitychange", visibility);
+      document.removeEventListener("pointerover", hover);
+      document.removeEventListener("pointerout", out);
+      document.removeEventListener("focusin", focusIn);
+      document.removeEventListener("focusout", focusOut);
+      delete parent.dataset.stageFocus;
       photo.style.opacity = "";
     };
   }, [result, host, hero]);
@@ -609,7 +674,9 @@ export default function Stage({
         aria-valuetext="0 degrees"
         hidden={view === "photo"}
       />
-      <img className="stage-inset" ref={inset} src={result.image.src} alt="" />
+      <span className="stage-hint" ref={hint} aria-hidden="true" hidden>
+        Drag to turn
+      </span>
       <div
         className="value-switch stage-switch"
         role="group"

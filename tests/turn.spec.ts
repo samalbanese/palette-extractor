@@ -274,3 +274,33 @@ test("with reduced motion it turns only by hand, and stops where it is let go", 
     String(released),
   );
 });
+
+test("a quiet hint says the cloud turns, until it is first turned", async ({
+  page,
+}) => {
+  const hint = page.locator(".stage-hint");
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText("Drag to turn");
+  // Not read out: the slider already says what it does.
+  await expect(hint).toHaveAttribute("aria-hidden", "true");
+  await page.getByRole("button", { name: "Photo", exact: true }).click();
+  await expect(hint).toBeHidden();
+  await page.getByRole("button", { name: "Color space", exact: true }).click();
+  await expect(hint).toBeVisible();
+  const { x, y, box } = await center(page);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + box.width / 8, y, { steps: 4 });
+  await page.mouse.up();
+  await expect(hint).toBeHidden();
+  // A new photo does not bring it back.
+  await page.locator(".sample-row button").nth(1).click();
+  await stageDone(page);
+  await expect(hint).toBeHidden();
+});
+
+test("turning by keyboard also retires the hint", async ({ page }) => {
+  await turn(page).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator(".stage-hint")).toBeHidden();
+});

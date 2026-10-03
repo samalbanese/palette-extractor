@@ -597,17 +597,23 @@ code {
 .stage-host[data-stage-step="lift"] .stage-surface {
   background: transparent;
 }
-.stage-inset {
+/* Shown at rest until the cloud is first turned on this page. */
+.stage-hint {
   position: absolute;
-  left: 14px;
-  bottom: 48px;
-  width: 25%;
-  height: 24%;
-  object-fit: cover;
-  border: 1px solid #ffffff40;
-  border-radius: 8px;
-  opacity: 0;
+  inset: 14px auto auto 14px;
+  border-radius: 30px;
+  padding: 7px 12px;
+  background: #16191b;
+  color: #d9dad6;
+  font-size: 11px;
   pointer-events: none;
+  animation: stage-hint-in 0.5s 0.4s ease-out both;
+}
+@keyframes stage-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 /* Drag sideways to turn the cloud; vertical swipes still scroll the page. */
 .stage-turn {
@@ -2559,6 +2565,7 @@ select {
   .url-form p,
   .shared-source > p,
   .processing-badge,
+  .stage-hint,
   .error-banner,
   .code-window pre,
   select {

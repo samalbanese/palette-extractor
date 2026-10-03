@@ -4,7 +4,11 @@
 // deadline that holds even when no frames run.
 
 /** The stage's source view, kept for the whole visit. */
-export const session = { view: "cloud" as "photo" | "cloud" };
+export const session = {
+  view: "cloud" as "photo" | "cloud",
+  /** Set once the cloud has been turned by hand or key on this page. */
+  turned: false,
+};
 
 // No later than this after navigation on a first load, the swatches show,
 // whether or not a stage has started.
